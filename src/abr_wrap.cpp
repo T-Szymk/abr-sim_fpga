@@ -24,6 +24,7 @@
 #define MLDSA_SIGN_RND          0x0078
 #define MLDSA_MSG               0x0098
 #define MLDSA_VERIFY_RES        0x00d8
+#define MLDSA_EXTERNAL_MU       0x0118
 #define MLDSA_PUBKEY            0x1000
 #define MLDSA_SIGNATURE         0x2000
 #define MLDSA_PRIVKEY_OUT       0x4000
@@ -47,6 +48,7 @@
 #define MLDSA_SIGN_RND_SZ       0x0020
 #define MLDSA_MSG_SZ            0x0040
 #define MLDSA_VERIFY_RES_SZ     0x0040
+#define MLDSA_EXTERNAL_MU_SZ    0x0040
 #define MLKEM_MSG_SZ            0x0020
 #define MLKEM_SHARED_KEY_SZ     0x0020
 
@@ -59,6 +61,9 @@
 #define CTRL_SIGN_ENCAPS        2
 #define CTRL_VERIFY_DECAPS      3
 #define CTRL_KG_COMBO           4
+#define CTRL_PCR_SIGN           0x10
+#define CTRL_EXTERNAL_MU        0x20
+#define CTRL_STREAM_MSG         0x40
 
 //  ML-DSA-87 / ML-KEM-1024 byte sizes.
 #define MLDSA_PUBKEY_SZ         2592
@@ -171,6 +176,7 @@ static const char usage[] =
     "USAGE: abr_wrap [options] [operation]\n\n"
     "Operation is one of:\n"
     "\tmldsa-keygen, mldsa-sign, mldsa-verify, mldsa-kgsign\n"
+    "\tmldsa-sign-extmu (external-mu sign: caller supplies precomputed mu)\n"
     "\tmlkem-keygen, mlkem-encaps, mlkem-decaps, mlkem-kgdecaps\n"
     "\tkeygen, sign, verify, kgsign are aliases for the mldsa-* operations\n\n"
     "Options (with default values):\n"
@@ -184,6 +190,7 @@ static const char usage[] =
     "\t-rnd\t<fn>\tML-DSA signing randomness (rnd_in.dat)\n"
     "\t-ent\t<fn>\tmasking entropy input (ent_in.dat, optional)\n"
     "\t-vfy\t<fn>\tML-DSA verify result output block (none)\n"
+    "\t-mu\t<fn>\tML-DSA external mu input (mu_in.dat)\n"
     "\t-d\t<fn>\tML-KEM seed d (seed_d_in.dat)\n"
     "\t-z\t<fn>\tML-KEM seed z (seed_z_in.dat)\n"
     "\t-msg\t<fn>\tML-KEM message/randomness (msg_in.dat)\n"
@@ -206,6 +213,7 @@ int main(int argc, char **argv)
     const char *sig_in_fn = "sig_in.dat";
     const char *sig_out_fn = "sig_out.dat";
     const char *vfy_out_fn = NULL;
+    const char *mu_in_fn = "mu_in.dat";
 
     const char *seed_d_in_fn = "seed_d_in.dat";
     const char *seed_z_in_fn = "seed_z_in.dat";
@@ -229,6 +237,7 @@ int main(int argc, char **argv)
     uint32_t sig_in[SZ_U32(MLDSA_SIGNATURE_SZ)] = {0};
     uint32_t sig_out[SZ_U32(MLDSA_SIGNATURE_SZ)] = {0};
     uint32_t vfy_out[SZ_U32(MLDSA_VERIFY_RES_SZ)] = {0};
+    uint32_t mu_in[SZ_U32(MLDSA_EXTERNAL_MU_SZ)] = {0};
 
     uint32_t seed_d_in[SZ_U32(SEED_SZ)] = {0};
     uint32_t seed_z_in[SZ_U32(SEED_SZ)] = {0};
@@ -280,6 +289,9 @@ int main(int argc, char **argv)
             i += 2;
         } else if (i + 1 < argc && strcmp(argv[i], "-hash") == 0) {
             hash_in_fn = argv[i + 1];
+            i += 2;
+        } else if (i + 1 < argc && strcmp(argv[i], "-mu") == 0) {
+            mu_in_fn = argv[i + 1];
             i += 2;
         } else if (i + 1 < argc && strcmp(argv[i], "-d") == 0) {
             seed_d_in_fn = argv[i + 1];
@@ -336,6 +348,14 @@ int main(int argc, char **argv)
         {"mldsa-kgsign", "KGSG", MLDSA_CTRL, MLDSA_STATUS, STATUS_MLDSA_ERROR, CTRL_KG_COMBO,
             {{"seed", MLDSA_SEED, SEED_SZ, seed_in, seed_in_fn, false},
              {"hash", MLDSA_MSG, MLDSA_MSG_SZ, hash_in, hash_in_fn, false},
+             {"rnd", MLDSA_SIGN_RND, MLDSA_SIGN_RND_SZ, rnd_in, rnd_in_fn, false},
+             {"ent", ABR_ENTROPY, ENTROPY_SZ, ent_in, ent_in_fn, true}},
+            {{"sig", MLDSA_SIGNATURE, MLDSA_SIGNATURE_SZ, sig_out, sig_out_fn, false}},
+            false},
+        {"mldsa-sign-extmu", "MUSGN", MLDSA_CTRL, MLDSA_STATUS, STATUS_MLDSA_ERROR,
+            CTRL_SIGN_ENCAPS | CTRL_EXTERNAL_MU,
+            {{"mu", MLDSA_EXTERNAL_MU, MLDSA_EXTERNAL_MU_SZ, mu_in, mu_in_fn, false},
+             {"sk", MLDSA_PRIVKEY_IN, MLDSA_PRIVKEY_SZ, sk_in, sk_in_fn, false},
              {"rnd", MLDSA_SIGN_RND, MLDSA_SIGN_RND_SZ, rnd_in, rnd_in_fn, false},
              {"ent", ABR_ENTROPY, ENTROPY_SZ, ent_in, ent_in_fn, true}},
             {{"sig", MLDSA_SIGNATURE, MLDSA_SIGNATURE_SZ, sig_out, sig_out_fn, false}},

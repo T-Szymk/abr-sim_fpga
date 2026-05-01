@@ -1,6 +1,11 @@
 #!/bin/bash
 #   ML-KEM encaps trace acquisition: random leg.
 #   Random d/z (random ek) and random m each iteration.
+set -euo pipefail
+
+hexrand() {
+    od -An -N"$1" -tx1 /dev/urandom | tr -d ' \n' | tr 'a-f' 'A-F'
+}
 
 if [ "$#" -ne 4 ]; then
     echo "Usage: gen-kem-enc-rnd <maxcyc> <readvcd.prm> <id> <n>"
@@ -9,6 +14,7 @@ fi
 
 maxcyc="$1"
 vcdprm="$(cat $2)"
+PYTHON="${PYTHON:-python3}"
 
 #   make abr_wrap readvcd
 for x in `seq $4`; do
@@ -22,13 +28,13 @@ for x in `seq $4`; do
     echo "op=mlkem-encaps"  | tee -a param.txt
     echo "fixed=none"       | tee -a param.txt
     dd if=/dev/urandom of=ent_in.dat bs=1 count=64 2>/dev/null
-    randd=`cat /dev/urandom | tr -dc '0-9A-F' | head -c 64`
-    randz=`cat /dev/urandom | tr -dc '0-9A-F' | head -c 64`
-    randm=`cat /dev/urandom | tr -dc '0-9A-F' | head -c 64`
+    randd="$(hexrand 32)"
+    randz="$(hexrand 32)"
+    randm="$(hexrand 32)"
     echo "randd=${randd}"   | tee -a param.txt
     echo "randz=${randz}"   | tee -a param.txt
     echo "randm=${randm}"   | tee -a param.txt
-    python3 ../flow/mlkem-gen.py encaps $randd $randz $randm
+    $PYTHON ../flow/mlkem-gen.py encaps $randd $randz $randm
     mkfifo trace.vcd
     ../readvcd trace.vcd $vcdprm > trace.log &
     ../abr_wrap -t $maxcyc -vcd trace.vcd mlkem-encaps | tee run.log

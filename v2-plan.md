@@ -348,7 +348,7 @@ Validation:
 - Full-core toggle traces still work.
 - Optional focused configs produce shorter, interpretable traces.
 
-## Stage 12: `[TODO]` New ML-DSA Modes
+## Stage 12: `[WIP]` New ML-DSA Modes
 
 Add non-P0 `v2.0.3` ML-DSA flows:
 
@@ -364,3 +364,48 @@ Validation:
 - External-mu mode passes known-answer or self-generated vectors.
 - Stream-message mode handles partial final chunks and exposes useful timing in
   the trace logs.
+
+Progress:
+
+- External-mu wrapper op `mldsa-sign-extmu` implemented in `src/abr_wrap.cpp`:
+  loads `mu_in.dat` (64 B) into `MLDSA_EXTERNAL_MU` (0x118), drives `MLDSA_CTRL`
+  with `SIGN | EXTERNAL_MU` (bit 5 = 0x20 per RDL line 82), then transfers the
+  signature out as for normal sign. New `-mu <fn>` CLI flag added.
+- `flow/mldsa-gen.py` now also writes `mu_in.dat` containing the reference
+  `mu = H(H(pk) || M', 64)`, so `mldsa-sign-extmu` can cross-check against the
+  Python implementation.
+- CTRL bit defines (`CTRL_PCR_SIGN`, `CTRL_EXTERNAL_MU`, `CTRL_STREAM_MSG`)
+  added in advance of stream-msg work.
+- Validated `mldsa-sign-extmu` end-to-end: regenerated vectors with
+  `mldsa-gen.py 3` (which now also writes `mu_in.dat`), ran `./abr_wrap
+  mldsa-sign-extmu -t 100000`, and `cmp sig_out.dat sig_in.dat` matched. The
+  trace tagged the run as `[MUSGN]`, completing in 65,679 cycles vs 65,723
+  for the equivalent normal-`mldsa-sign` run; the 44-cycle delta corresponds
+  to the H(tr||M') step the engine bypasses in external-mu mode.
+
+Stream-message mode is the next sub-item. Confirmed the protocol against the
+upstream UVM sequence
+(`adams-bridge/src/abr_top/uvmf/.../ML_DSA_randomized_KeySign_stream_msg_sequence.svh`),
+not just the RDL:
+
+1. Write `MLDSA_CTRL = SIGN | STREAM_MSG` (= `0x44`).
+2. Poll `MLDSA_STATUS[2]` (`MSG_STREAM_READY`) until set.
+3. Stream the message word-by-word:
+   - For each fully-populated 4-byte chunk: write the 32 bits to `MLDSA_MSG[0]`
+     (offset `0x098`). The strobe defaults to `4'b1111`; no write to
+     `MSG_STROBE` is needed.
+   - For a final partial chunk of 1/2/3 bytes: write `MSG_STROBE` first
+     (`0001`/`0011`/`0111`), then write the packed partial word to `MSG[0]`.
+     Byte ordering is little-endian within the dword: e.g. for 2 valid bytes
+     the data is `{16'h0, b1, b0}`.
+   - For a 32-bit-aligned message (all chunks full): after the last full word
+     is written, write `MSG_STROBE = 4'b0000`, then write a dummy `MSG[0] = 0`
+     to flush the engine.
+4. Poll `MLDSA_STATUS[1]` (`VALID`) until set, then read the signature.
+
+The wrapper currently has one xfer FSM (`xfer_fsm`) that drives bulk
+range-based AHB transfers. Stream-msg needs a parallel mini-FSM that, between
+trigger and signature read, alternates STATUS-poll / `MSG[0]` write / optional
+`MSG_STROBE` write. The cleanest way is probably a new `Operation` field
+flagging stream-input, plus a streaming xfer state inserted between
+`main_fsm` cases 4 and 5 (start-of-op and wait-for-VALID).

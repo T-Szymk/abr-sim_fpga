@@ -74,6 +74,6 @@ $(BUILD):
 #       cleanup
 
 clean:
-	$(RM)   -f	$(READVCD) $(MLDSA_WRAP) $(ABR_WRAP) *.vcd *.dat
+	$(RM)   -f	$(READVCD) $(MLDSA_WRAP) $(ABR_WRAP) *.vcd *.dat *.log
 	$(RM)   -rf $(BUILD) _tr* */__pycache__
 	cd plot && $(MAKE) clean
