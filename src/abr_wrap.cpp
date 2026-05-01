@@ -52,7 +52,8 @@
 
 #define STATUS_READY            1
 #define STATUS_VALID            2
-#define STATUS_ERROR            4
+#define STATUS_MLKEM_ERROR      4
+#define STATUS_MLDSA_ERROR      8
 
 #define CTRL_KEYGEN             1
 #define CTRL_SIGN_ENCAPS        2
@@ -83,6 +84,7 @@ struct Operation {
     const char          *tag;
     uint32_t            ctrl_addr;
     uint32_t            status_addr;
+    uint32_t            status_error_mask;
     uint32_t            ctrl;
     std::vector<Io>     inputs;
     std::vector<Io>     outputs;
@@ -312,53 +314,53 @@ int main(int argc, char **argv)
     }
 
     Operation ops[] = {
-        {"mldsa-keygen", "KGEN", MLDSA_CTRL, MLDSA_STATUS, CTRL_KEYGEN,
+        {"mldsa-keygen", "KGEN", MLDSA_CTRL, MLDSA_STATUS, STATUS_MLDSA_ERROR, CTRL_KEYGEN,
             {{"ent", ABR_ENTROPY, ENTROPY_SZ, ent_in, ent_in_fn, true},
              {"seed", MLDSA_SEED, SEED_SZ, seed_in, seed_in_fn, false}},
             {{"sk", MLDSA_PRIVKEY_OUT, MLDSA_PRIVKEY_SZ, sk_out, sk_out_fn, false},
              {"pk", MLDSA_PUBKEY, MLDSA_PUBKEY_SZ, pk_out, pk_out_fn, false}},
             false},
-        {"mldsa-sign", "SIGN", MLDSA_CTRL, MLDSA_STATUS, CTRL_SIGN_ENCAPS,
+        {"mldsa-sign", "SIGN", MLDSA_CTRL, MLDSA_STATUS, STATUS_MLDSA_ERROR, CTRL_SIGN_ENCAPS,
             {{"hash", MLDSA_MSG, MLDSA_MSG_SZ, hash_in, hash_in_fn, false},
              {"sk", MLDSA_PRIVKEY_IN, MLDSA_PRIVKEY_SZ, sk_in, sk_in_fn, false},
              {"rnd", MLDSA_SIGN_RND, MLDSA_SIGN_RND_SZ, rnd_in, rnd_in_fn, false},
              {"ent", ABR_ENTROPY, ENTROPY_SZ, ent_in, ent_in_fn, true}},
             {{"sig", MLDSA_SIGNATURE, MLDSA_SIGNATURE_SZ, sig_out, sig_out_fn, false}},
             false},
-        {"mldsa-verify", "VRFY", MLDSA_CTRL, MLDSA_STATUS, CTRL_VERIFY_DECAPS,
+        {"mldsa-verify", "VRFY", MLDSA_CTRL, MLDSA_STATUS, STATUS_MLDSA_ERROR, CTRL_VERIFY_DECAPS,
             {{"hash", MLDSA_MSG, MLDSA_MSG_SZ, hash_in, hash_in_fn, false},
              {"pk", MLDSA_PUBKEY, MLDSA_PUBKEY_SZ, pk_in, pk_in_fn, false},
              {"sig", MLDSA_SIGNATURE, MLDSA_SIGNATURE_SZ, sig_in, sig_in_fn, false}},
             {{"vfy", MLDSA_VERIFY_RES, MLDSA_VERIFY_RES_SZ, vfy_out, vfy_out_fn, true}},
             true},
-        {"mldsa-kgsign", "KGSG", MLDSA_CTRL, MLDSA_STATUS, CTRL_KG_COMBO,
+        {"mldsa-kgsign", "KGSG", MLDSA_CTRL, MLDSA_STATUS, STATUS_MLDSA_ERROR, CTRL_KG_COMBO,
             {{"seed", MLDSA_SEED, SEED_SZ, seed_in, seed_in_fn, false},
              {"hash", MLDSA_MSG, MLDSA_MSG_SZ, hash_in, hash_in_fn, false},
              {"rnd", MLDSA_SIGN_RND, MLDSA_SIGN_RND_SZ, rnd_in, rnd_in_fn, false},
              {"ent", ABR_ENTROPY, ENTROPY_SZ, ent_in, ent_in_fn, true}},
             {{"sig", MLDSA_SIGNATURE, MLDSA_SIGNATURE_SZ, sig_out, sig_out_fn, false}},
             false},
-        {"mlkem-keygen", "KEMKG", MLKEM_CTRL, MLKEM_STATUS, CTRL_KEYGEN,
+        {"mlkem-keygen", "KEMKG", MLKEM_CTRL, MLKEM_STATUS, STATUS_MLKEM_ERROR, CTRL_KEYGEN,
             {{"d", MLKEM_SEED_D, SEED_SZ, seed_d_in, seed_d_in_fn, false},
              {"z", MLKEM_SEED_Z, SEED_SZ, seed_z_in, seed_z_in_fn, false},
              {"ent", ABR_ENTROPY, ENTROPY_SZ, ent_in, ent_in_fn, true}},
             {{"dk", MLKEM_DECAPS_KEY, MLKEM_DK_SZ, dk_out, dk_out_fn, false},
              {"ek", MLKEM_ENCAPS_KEY, MLKEM_EK_SZ, ek_out, ek_out_fn, false}},
             false},
-        {"mlkem-encaps", "ENCAP", MLKEM_CTRL, MLKEM_STATUS, CTRL_SIGN_ENCAPS,
+        {"mlkem-encaps", "ENCAP", MLKEM_CTRL, MLKEM_STATUS, STATUS_MLKEM_ERROR, CTRL_SIGN_ENCAPS,
             {{"ek", MLKEM_ENCAPS_KEY, MLKEM_EK_SZ, ek_in, ek_in_fn, false},
              {"msg", MLKEM_MSG, MLKEM_MSG_SZ, msg_in, msg_in_fn, false},
              {"ent", ABR_ENTROPY, ENTROPY_SZ, ent_in, ent_in_fn, true}},
             {{"ct", MLKEM_CIPHERTEXT, MLKEM_CT_SZ, ct_out, ct_out_fn, false},
              {"ss", MLKEM_SHARED_KEY, MLKEM_SHARED_KEY_SZ, ss_out, ss_out_fn, false}},
             false},
-        {"mlkem-decaps", "DECAP", MLKEM_CTRL, MLKEM_STATUS, CTRL_VERIFY_DECAPS,
+        {"mlkem-decaps", "DECAP", MLKEM_CTRL, MLKEM_STATUS, STATUS_MLKEM_ERROR, CTRL_VERIFY_DECAPS,
             {{"dk", MLKEM_DECAPS_KEY, MLKEM_DK_SZ, dk_in, dk_in_fn, false},
              {"ct", MLKEM_CIPHERTEXT, MLKEM_CT_SZ, ct_in, ct_in_fn, false},
              {"ent", ABR_ENTROPY, ENTROPY_SZ, ent_in, ent_in_fn, true}},
             {{"ss", MLKEM_SHARED_KEY, MLKEM_SHARED_KEY_SZ, ss_out, ss_out_fn, false}},
             false},
-        {"mlkem-kgdecaps", "KGDEC", MLKEM_CTRL, MLKEM_STATUS, CTRL_KG_COMBO,
+        {"mlkem-kgdecaps", "KGDEC", MLKEM_CTRL, MLKEM_STATUS, STATUS_MLKEM_ERROR, CTRL_KG_COMBO,
             {{"d", MLKEM_SEED_D, SEED_SZ, seed_d_in, seed_d_in_fn, false},
              {"z", MLKEM_SEED_Z, SEED_SZ, seed_z_in, seed_z_in_fn, false},
              {"ct", MLKEM_CIPHERTEXT, MLKEM_CT_SZ, ct_in, ct_in_fn, false},
@@ -404,6 +406,7 @@ int main(int argc, char **argv)
     int prev_status = -1;
     bool dump_trace = false;
     bool timed_out = false;
+    bool status_error = false;
 
     int xfer_fsm = 0;
     bool xfer_write = false;
@@ -509,10 +512,16 @@ int main(int argc, char **argv)
                        cycle, status,
                        status & STATUS_READY ? " <READY>" : "",
                        status & STATUS_VALID ? " <VALID>" : "",
-                       status & STATUS_ERROR ? " <ERROR>" : "");
+                       status & op->status_error_mask ? " <ERROR>" : "");
                 prev_status = status;
             }
-            wait_ready = (status & (STATUS_READY | STATUS_VALID)) ? 0 : 2;
+            if (status & op->status_error_mask) {
+                status_error = true;
+                wait_ready = 0;
+                main_fsm = -1;
+            } else {
+                wait_ready = (status & (STATUS_READY | STATUS_VALID)) ? 0 : 2;
+            }
             continue;
         }
 
@@ -588,6 +597,8 @@ int main(int argc, char **argv)
                 for (const Io &io : op->outputs)
                     write_fn(io.data, io.size, io.fn);
                 if (op->verify_result) {
+                    // VERIFY_RES is the recomputed c_tilde; compare it against
+                    // the first 64 bytes of the ML-DSA-87 signature.
                     if (memcmp(vfy_out, sig_in, MLDSA_VERIFY_RES_SZ) == 0)
                         printf("[INFO]\tSignature verify OK\n");
                     else
@@ -603,12 +614,14 @@ int main(int argc, char **argv)
         }
     }
 
-    printf("[EXIT]\t%ld%s\n", cycle, timed_out ? " <TIMEOUT>" : "");
+    printf("[EXIT]\t%ld%s%s\n", cycle,
+           timed_out ? " <TIMEOUT>" : "",
+           status_error ? " <ERROR>" : "");
 
     dut->final();
     if (tfp != NULL)
         tfp->close();
     delete dut;
 
-    return timed_out ? 1 : 0;
+    return (timed_out || status_error) ? 1 : 0;
 }

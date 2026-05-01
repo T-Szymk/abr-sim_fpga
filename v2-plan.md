@@ -149,10 +149,15 @@ Progress:
 - ML-KEM status completes with `VALID` rather than `READY`; the driver treats
   either `READY` or `VALID` as a terminal wait condition and still prints
   `ERROR` when present.
+- Status error handling is engine-specific: ML-DSA uses error bit `0x8`, while
+  ML-KEM uses error bit `0x4`. Either error bit now terminates the wait loop and
+  returns a non-zero process status.
 - Validation commands: `make abr_wrap`, short bounded `mldsa-keygen`, and full
   ML-KEM keygen/encaps/decaps runs.
+- Audit-fix smoke checks: `mldsa-verify` and `mlkem-keygen` completed normally
+  after the per-engine error-mask change, with outputs matching references.
 
-## Stage 6: `[TODO]` ML-DSA Regression Checkpoint
+## Stage 6: `[DONE]` ML-DSA Regression Checkpoint
 
 Restore existing ML-DSA operations first:
 
@@ -170,6 +175,22 @@ Validation:
 - `sign` produces a valid signature.
 - `verify` accepts that signature.
 - VCD/toggle trace generation still works with the new `[seq]` decode channel.
+
+Progress:
+
+- Generated a deterministic ML-DSA-87 test vector in `/tmp`:
+  `/home/mjos/mf3/bin/mamba run python3 flow/mldsa-gen.py 3`.
+- Validated `mldsa-keygen`: DUT `sk` and `pk` matched `sk_in.dat` and
+  `pk_in.dat`.
+- Validated `mldsa-sign`: DUT signature matched `sig_in.dat`.
+- Validated `mldsa-verify`: DUT accepted the generated signature and emitted
+  `Signature verify OK`.
+- Validated `mldsa-kgsign`: DUT signature matched `sig_in.dat`.
+- Runtime logs showed unified `[seq]` decode markers through ML-DSA keygen,
+  sign, verify, and keygen-sign paths.
+- VCD/toggle pipeline confirmed via FIFO: `readvcd <fifo> dec.cyc` resolves
+  `TOP.abr_wrap.top0.abr_ctrl_inst.abr_seq_inst.dec.cyc[25:0]` and emits
+  `[togd]` per-cycle counts; `[seq]` markers stream from the same run.
 
 ## Stage 7: `[BLOCKED]` MASKING_EN Build Matrix
 
@@ -228,7 +249,7 @@ Progress:
 - Validation command:
   `/home/mjos/mf3/bin/mamba run python3 flow/mlkem-gen.py all 01 02 03`.
 
-## Stage 9: `[WIP]` ML-KEM Acquisition
+## Stage 9: `[DONE]` ML-KEM Acquisition
 
 Add wrapper operations:
 
@@ -257,6 +278,7 @@ Validation:
 - `mlkem-keygen` output matches `mlkem-gen.py`.
 - `mlkem-encaps` output shared key and ciphertext match `mlkem-gen.py`.
 - `mlkem-decaps` output shared key matches `mlkem-gen.py`.
+- `mlkem-kgdecaps` output shared key matches `mlkem-gen.py`.
 
 Progress:
 
@@ -266,10 +288,14 @@ Progress:
   `dk` and `ek` matched `flow/mlkem-gen.py`.
 - Validated encaps with generated `ek` and `msg`; DUT `ct` and `ss` matched.
 - Validated decaps with generated `dk` and `ct`; DUT `ss` matched.
-- `mlkem-kgdecaps` is implemented but not yet separately checked, so this stage
-  remains `[WIP]`.
+- Validated `mlkem-kgdecaps` with generated `d`, `z`, and `ct`; DUT `ss`
+  matched and DUT `ek` matched the generated `ek`.
+- Note: `mlkem-kgdecaps` `dk` readback was all-zero after the combined
+  decapsulation flow, even though `ss` and `ek` were correct. Treat `ss` as the
+  contract for this combined operation unless later firmware requirements need
+  `dk` export after decapsulation.
 
-## Stage 10: `[TODO]` ML-KEM Trace Scripts
+## Stage 10: `[DONE]` ML-KEM Trace Scripts
 
 Mirror the current ML-DSA trace scripts for ML-KEM.
 
@@ -284,6 +310,26 @@ Validation:
 
 - Batch scripts collect traces through FIFO VCD parsing.
 - Logs are compressed and named consistently with existing ML-DSA flows.
+
+Progress:
+
+- Added five ML-KEM trace scripts following the existing
+  `gen-fix.sh`/`gen-rnd.sh`/`gen-kgr.sh` conventions:
+    - `flow/gen-kem-enc-fix.sh` (encaps, fixed `m` / random ek)
+    - `flow/gen-kem-enc-rnd.sh` (encaps, fully random)
+    - `flow/gen-kem-dec-fix.sh` (decaps, fixed dk / random ct)
+    - `flow/gen-kem-dec-rnd.sh` (decaps, fully random)
+    - `flow/gen-kem-kg.sh`     (keygen, random d/z)
+- Each iteration writes the same `param.txt` shape as ML-DSA scripts
+  (`tmpdir`, `maxcyc`, `vcdprm`, plus per-op `op=`, `fixed=`, and the
+  per-iteration random hex values), so `flow/gen-sum.sh`'s `_tr_*` glob
+  catches ML-KEM dirs without modification.
+- Updated `flow/gen-fix.sh`, `flow/gen-rnd.sh`, `flow/gen-kgr.sh` to invoke
+  `../abr_wrap mldsa-{sign,kgsign}` since the legacy `mldsa_wrap` binary no
+  longer builds.
+- Smoke-validated `gen-kem-kg.sh` end-to-end (n=1, maxcyc=20000): keygen
+  completed in ~6740 cycles, `[seq]` markers covered `MLKEM_KG_S`+0 through
+  `MLKEM_KG_E`, and the FIFO+readvcd pipeline emitted 6739 `[togd]` samples.
 
 ## Stage 11: `[TODO]` Trace Resolution Enhancements
 

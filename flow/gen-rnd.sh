@@ -22,7 +22,7 @@ for x in `seq $4`; do
     python3 ../flow/mldsa-gen.py $tmpdir $randxi
     mkfifo trace.vcd
     ../readvcd trace.vcd $vcdprm > trace.log &
-    ../mldsa_wrap -t $maxcyc -vcd trace.vcd sign | tee run.log
+    ../abr_wrap -t $maxcyc -vcd trace.vcd mldsa-sign | tee run.log
     gzip *.log
     cd ..
 done
