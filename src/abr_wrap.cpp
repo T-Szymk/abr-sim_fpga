@@ -25,6 +25,7 @@
 #define MLDSA_MSG               0x0098
 #define MLDSA_VERIFY_RES        0x00d8
 #define MLDSA_EXTERNAL_MU       0x0118
+#define MLDSA_MSG_STROBE        0x0158
 #define MLDSA_PUBKEY            0x1000
 #define MLDSA_SIGNATURE         0x2000
 #define MLDSA_PRIVKEY_OUT       0x4000
@@ -56,6 +57,7 @@
 #define STATUS_VALID            2
 #define STATUS_MLKEM_ERROR      4
 #define STATUS_MLDSA_ERROR      8
+#define STATUS_MLDSA_STREAM_RDY 4   /* MLDSA_STATUS[2] (engine-specific use) */
 
 #define CTRL_KEYGEN             1
 #define CTRL_SIGN_ENCAPS        2
@@ -94,6 +96,7 @@ struct Operation {
     std::vector<Io>     inputs;
     std::vector<Io>     outputs;
     bool                verify_result;
+    bool                stream_input;
 };
 
 static void ahb_clear(Vabr_wrap *dut)
@@ -177,6 +180,7 @@ static const char usage[] =
     "Operation is one of:\n"
     "\tmldsa-keygen, mldsa-sign, mldsa-verify, mldsa-kgsign\n"
     "\tmldsa-sign-extmu (external-mu sign: caller supplies precomputed mu)\n"
+    "\tmldsa-sign-stream (stream-msg sign: byte-strobed message stream)\n"
     "\tmlkem-keygen, mlkem-encaps, mlkem-decaps, mlkem-kgdecaps\n"
     "\tkeygen, sign, verify, kgsign are aliases for the mldsa-* operations\n\n"
     "Options (with default values):\n"
@@ -191,6 +195,7 @@ static const char usage[] =
     "\t-ent\t<fn>\tmasking entropy input (ent_in.dat, optional)\n"
     "\t-vfy\t<fn>\tML-DSA verify result output block (none)\n"
     "\t-mu\t<fn>\tML-DSA external mu input (mu_in.dat)\n"
+    "\t-strm\t<fn>\tML-DSA stream-msg input bytes (strm_in.dat)\n"
     "\t-d\t<fn>\tML-KEM seed d (seed_d_in.dat)\n"
     "\t-z\t<fn>\tML-KEM seed z (seed_z_in.dat)\n"
     "\t-msg\t<fn>\tML-KEM message/randomness (msg_in.dat)\n"
@@ -214,6 +219,7 @@ int main(int argc, char **argv)
     const char *sig_out_fn = "sig_out.dat";
     const char *vfy_out_fn = NULL;
     const char *mu_in_fn = "mu_in.dat";
+    const char *strm_in_fn = "strm_in.dat";
 
     const char *seed_d_in_fn = "seed_d_in.dat";
     const char *seed_z_in_fn = "seed_z_in.dat";
@@ -293,6 +299,9 @@ int main(int argc, char **argv)
         } else if (i + 1 < argc && strcmp(argv[i], "-mu") == 0) {
             mu_in_fn = argv[i + 1];
             i += 2;
+        } else if (i + 1 < argc && strcmp(argv[i], "-strm") == 0) {
+            strm_in_fn = argv[i + 1];
+            i += 2;
         } else if (i + 1 < argc && strcmp(argv[i], "-d") == 0) {
             seed_d_in_fn = argv[i + 1];
             i += 2;
@@ -331,27 +340,27 @@ int main(int argc, char **argv)
              {"seed", MLDSA_SEED, SEED_SZ, seed_in, seed_in_fn, false}},
             {{"sk", MLDSA_PRIVKEY_OUT, MLDSA_PRIVKEY_SZ, sk_out, sk_out_fn, false},
              {"pk", MLDSA_PUBKEY, MLDSA_PUBKEY_SZ, pk_out, pk_out_fn, false}},
-            false},
+            false, false},
         {"mldsa-sign", "SIGN", MLDSA_CTRL, MLDSA_STATUS, STATUS_MLDSA_ERROR, CTRL_SIGN_ENCAPS,
             {{"hash", MLDSA_MSG, MLDSA_MSG_SZ, hash_in, hash_in_fn, false},
              {"sk", MLDSA_PRIVKEY_IN, MLDSA_PRIVKEY_SZ, sk_in, sk_in_fn, false},
              {"rnd", MLDSA_SIGN_RND, MLDSA_SIGN_RND_SZ, rnd_in, rnd_in_fn, false},
              {"ent", ABR_ENTROPY, ENTROPY_SZ, ent_in, ent_in_fn, true}},
             {{"sig", MLDSA_SIGNATURE, MLDSA_SIGNATURE_SZ, sig_out, sig_out_fn, false}},
-            false},
+            false, false},
         {"mldsa-verify", "VRFY", MLDSA_CTRL, MLDSA_STATUS, STATUS_MLDSA_ERROR, CTRL_VERIFY_DECAPS,
             {{"hash", MLDSA_MSG, MLDSA_MSG_SZ, hash_in, hash_in_fn, false},
              {"pk", MLDSA_PUBKEY, MLDSA_PUBKEY_SZ, pk_in, pk_in_fn, false},
              {"sig", MLDSA_SIGNATURE, MLDSA_SIGNATURE_SZ, sig_in, sig_in_fn, false}},
             {{"vfy", MLDSA_VERIFY_RES, MLDSA_VERIFY_RES_SZ, vfy_out, vfy_out_fn, true}},
-            true},
+            true, false},
         {"mldsa-kgsign", "KGSG", MLDSA_CTRL, MLDSA_STATUS, STATUS_MLDSA_ERROR, CTRL_KG_COMBO,
             {{"seed", MLDSA_SEED, SEED_SZ, seed_in, seed_in_fn, false},
              {"hash", MLDSA_MSG, MLDSA_MSG_SZ, hash_in, hash_in_fn, false},
              {"rnd", MLDSA_SIGN_RND, MLDSA_SIGN_RND_SZ, rnd_in, rnd_in_fn, false},
              {"ent", ABR_ENTROPY, ENTROPY_SZ, ent_in, ent_in_fn, true}},
             {{"sig", MLDSA_SIGNATURE, MLDSA_SIGNATURE_SZ, sig_out, sig_out_fn, false}},
-            false},
+            false, false},
         {"mldsa-sign-extmu", "MUSGN", MLDSA_CTRL, MLDSA_STATUS, STATUS_MLDSA_ERROR,
             CTRL_SIGN_ENCAPS | CTRL_EXTERNAL_MU,
             {{"mu", MLDSA_EXTERNAL_MU, MLDSA_EXTERNAL_MU_SZ, mu_in, mu_in_fn, false},
@@ -359,27 +368,34 @@ int main(int argc, char **argv)
              {"rnd", MLDSA_SIGN_RND, MLDSA_SIGN_RND_SZ, rnd_in, rnd_in_fn, false},
              {"ent", ABR_ENTROPY, ENTROPY_SZ, ent_in, ent_in_fn, true}},
             {{"sig", MLDSA_SIGNATURE, MLDSA_SIGNATURE_SZ, sig_out, sig_out_fn, false}},
-            false},
+            false, false},
+        {"mldsa-sign-stream", "STMSG", MLDSA_CTRL, MLDSA_STATUS, STATUS_MLDSA_ERROR,
+            CTRL_SIGN_ENCAPS | CTRL_STREAM_MSG,
+            {{"sk", MLDSA_PRIVKEY_IN, MLDSA_PRIVKEY_SZ, sk_in, sk_in_fn, false},
+             {"rnd", MLDSA_SIGN_RND, MLDSA_SIGN_RND_SZ, rnd_in, rnd_in_fn, false},
+             {"ent", ABR_ENTROPY, ENTROPY_SZ, ent_in, ent_in_fn, true}},
+            {{"sig", MLDSA_SIGNATURE, MLDSA_SIGNATURE_SZ, sig_out, sig_out_fn, false}},
+            false, true},
         {"mlkem-keygen", "KEMKG", MLKEM_CTRL, MLKEM_STATUS, STATUS_MLKEM_ERROR, CTRL_KEYGEN,
             {{"d", MLKEM_SEED_D, SEED_SZ, seed_d_in, seed_d_in_fn, false},
              {"z", MLKEM_SEED_Z, SEED_SZ, seed_z_in, seed_z_in_fn, false},
              {"ent", ABR_ENTROPY, ENTROPY_SZ, ent_in, ent_in_fn, true}},
             {{"dk", MLKEM_DECAPS_KEY, MLKEM_DK_SZ, dk_out, dk_out_fn, false},
              {"ek", MLKEM_ENCAPS_KEY, MLKEM_EK_SZ, ek_out, ek_out_fn, false}},
-            false},
+            false, false},
         {"mlkem-encaps", "ENCAP", MLKEM_CTRL, MLKEM_STATUS, STATUS_MLKEM_ERROR, CTRL_SIGN_ENCAPS,
             {{"ek", MLKEM_ENCAPS_KEY, MLKEM_EK_SZ, ek_in, ek_in_fn, false},
              {"msg", MLKEM_MSG, MLKEM_MSG_SZ, msg_in, msg_in_fn, false},
              {"ent", ABR_ENTROPY, ENTROPY_SZ, ent_in, ent_in_fn, true}},
             {{"ct", MLKEM_CIPHERTEXT, MLKEM_CT_SZ, ct_out, ct_out_fn, false},
              {"ss", MLKEM_SHARED_KEY, MLKEM_SHARED_KEY_SZ, ss_out, ss_out_fn, false}},
-            false},
+            false, false},
         {"mlkem-decaps", "DECAP", MLKEM_CTRL, MLKEM_STATUS, STATUS_MLKEM_ERROR, CTRL_VERIFY_DECAPS,
             {{"dk", MLKEM_DECAPS_KEY, MLKEM_DK_SZ, dk_in, dk_in_fn, false},
              {"ct", MLKEM_CIPHERTEXT, MLKEM_CT_SZ, ct_in, ct_in_fn, false},
              {"ent", ABR_ENTROPY, ENTROPY_SZ, ent_in, ent_in_fn, true}},
             {{"ss", MLKEM_SHARED_KEY, MLKEM_SHARED_KEY_SZ, ss_out, ss_out_fn, false}},
-            false},
+            false, false},
         {"mlkem-kgdecaps", "KGDEC", MLKEM_CTRL, MLKEM_STATUS, STATUS_MLKEM_ERROR, CTRL_KG_COMBO,
             {{"d", MLKEM_SEED_D, SEED_SZ, seed_d_in, seed_d_in_fn, false},
              {"z", MLKEM_SEED_Z, SEED_SZ, seed_z_in, seed_z_in_fn, false},
@@ -388,7 +404,7 @@ int main(int argc, char **argv)
             {{"dk", MLKEM_DECAPS_KEY, MLKEM_DK_SZ, dk_out, dk_out_fn, false},
              {"ek", MLKEM_ENCAPS_KEY, MLKEM_EK_SZ, ek_out, ek_out_fn, false},
              {"ss", MLKEM_SHARED_KEY, MLKEM_SHARED_KEY_SZ, ss_out, ss_out_fn, false}},
-            false},
+            false, false},
     };
 
     if (op_name == NULL) {
@@ -419,10 +435,36 @@ int main(int argc, char **argv)
     for (const Io &io : op->inputs)
         read_fn(io.data, io.size, io.fn, io.optional);
 
+    uint8_t *stream_owned = NULL;
+    const uint8_t *stream_buf = NULL;
+    size_t stream_len = 0;
+    if (op->stream_input) {
+        FILE *fp = fopen(strm_in_fn, "rb");
+        if (fp == NULL) {
+            perror(strm_in_fn);
+            return 1;
+        }
+        fseek(fp, 0, SEEK_END);
+        long sz = ftell(fp);
+        fseek(fp, 0, SEEK_SET);
+        stream_len = (sz < 0) ? 0 : (size_t) sz;
+        stream_owned = (uint8_t *) calloc(stream_len + 1, 1);
+        if (stream_len > 0 &&
+            fread(stream_owned, 1, stream_len, fp) != stream_len) {
+            perror(strm_in_fn);
+            fclose(fp);
+            return 1;
+        }
+        fclose(fp);
+        stream_buf = stream_owned;
+        printf("[LOAD]\t%s (read %zu bytes)\n", strm_in_fn, stream_len);
+    }
+
     uint64_t hclk = 0;
     int64_t cycle = 0;
     int main_fsm = 0;
     int wait_ready = 0;
+    uint32_t wait_complete_mask = STATUS_READY | STATUS_VALID;
     int prev_status = -1;
     bool dump_trace = false;
     bool timed_out = false;
@@ -435,6 +477,11 @@ int main(int argc, char **argv)
     uint32_t *xfer_data = NULL;
     size_t xfer_index = 0;
     const std::vector<Io> *xfer_list = NULL;
+
+    int stream_fsm = 0;
+    int stream_phase = 0;
+    size_t stream_pos = 0;
+    bool stream_done = false;
 
     Vabr_wrap *dut = new Vabr_wrap;
     VerilatedVcdC *tfp = NULL;
@@ -469,6 +516,64 @@ int main(int argc, char **argv)
         }
 
         dut->hready_i = dut->hreadyout_o;
+
+        if (stream_fsm) {
+            switch (stream_fsm) {
+                case 1: {
+                    size_t remaining = stream_len - stream_pos;
+                    if (stream_phase == 1) {
+                        if (remaining >= 4) {
+                            uint32_t w =
+                                  (uint32_t) stream_buf[stream_pos]
+                                | ((uint32_t) stream_buf[stream_pos + 1] << 8)
+                                | ((uint32_t) stream_buf[stream_pos + 2] << 16)
+                                | ((uint32_t) stream_buf[stream_pos + 3] << 24);
+                            ahb_write(dut, MLDSA_MSG, w);
+                            stream_fsm = 2;
+                        } else {
+                            stream_phase = 2;
+                            // No write this cycle; re-enter case 1 next cycle.
+                        }
+                    } else if (stream_phase == 2) {
+                        uint32_t strobe = (remaining == 0)
+                            ? 0u
+                            : (uint32_t) ((1u << remaining) - 1);
+                        printf("[STRM]\t%ld\tstrobe %u, partial %zu\n",
+                               cycle, strobe, remaining);
+                        ahb_write(dut, MLDSA_MSG_STROBE, strobe);
+                        stream_fsm = 2;
+                    } else if (stream_phase == 3) {
+                        uint32_t w = 0;
+                        for (size_t k = 0; k < remaining; k++)
+                            w |= (uint32_t) stream_buf[stream_pos + k] << (8 * k);
+                        ahb_write(dut, MLDSA_MSG, w);
+                        stream_fsm = 2;
+                    }
+                    break;
+                }
+                case 2:
+                    ahb_clear(dut);
+                    if (dut->hreadyout_o) {
+                        if (stream_phase == 1) {
+                            stream_pos += 4;
+                            stream_fsm = 1;
+                        } else if (stream_phase == 2) {
+                            stream_phase = 3;
+                            stream_fsm = 1;
+                        } else if (stream_phase == 3) {
+                            stream_fsm = 0;
+                            stream_phase = 0;
+                            stream_done = true;
+                            wait_complete_mask = STATUS_READY | STATUS_VALID;
+                            wait_ready = 1;
+                            printf("[STRM]\t%ld\tstream done (%zu bytes)\n",
+                                   cycle, stream_len);
+                        }
+                    }
+                    break;
+            }
+            continue;
+        }
 
         if (xfer_fsm) {
             switch (xfer_fsm) {
@@ -540,7 +645,7 @@ int main(int argc, char **argv)
                 wait_ready = 0;
                 main_fsm = -1;
             } else {
-                wait_ready = (status & (STATUS_READY | STATUS_VALID)) ? 0 : 2;
+                wait_ready = (status & wait_complete_mask) ? 0 : 2;
             }
             continue;
         }
@@ -592,11 +697,22 @@ int main(int argc, char **argv)
                 printf("[%s]\t%ld\tstart\n", op->tag, cycle);
                 dump_trace = true;
                 ahb_write(dut, op->ctrl_addr, op->ctrl);
+                wait_complete_mask = op->stream_input
+                    ? STATUS_MLDSA_STREAM_RDY
+                    : (STATUS_READY | STATUS_VALID);
                 wait_ready = 1;
                 main_fsm++;
                 break;
 
             case 5:
+                if (op->stream_input && !stream_done) {
+                    printf("[STRM]\t%ld\tstream start (%zu bytes)\n",
+                           cycle, stream_len);
+                    stream_pos = 0;
+                    stream_phase = 1;
+                    stream_fsm = 1;
+                    break;
+                }
                 printf("[%s]\t%ld\tdone\n", op->tag, cycle);
                 dump_trace = false;
                 xfer_write = false;
@@ -642,6 +758,7 @@ int main(int argc, char **argv)
     if (tfp != NULL)
         tfp->close();
     delete dut;
+    free(stream_owned);
 
     return (timed_out || status_error) ? 1 : 0;
 }

@@ -348,7 +348,7 @@ Validation:
 - Full-core toggle traces still work.
 - Optional focused configs produce shorter, interpretable traces.
 
-## Stage 12: `[WIP]` New ML-DSA Modes
+## Stage 12: `[DONE]` New ML-DSA Modes
 
 Add non-P0 `v2.0.3` ML-DSA flows:
 
@@ -383,29 +383,37 @@ Progress:
   for the equivalent normal-`mldsa-sign` run; the 44-cycle delta corresponds
   to the H(tr||M') step the engine bypasses in external-mu mode.
 
-Stream-message mode is the next sub-item. Confirmed the protocol against the
-upstream UVM sequence
-(`adams-bridge/src/abr_top/uvmf/.../ML_DSA_randomized_KeySign_stream_msg_sequence.svh`),
-not just the RDL:
-
-1. Write `MLDSA_CTRL = SIGN | STREAM_MSG` (= `0x44`).
-2. Poll `MLDSA_STATUS[2]` (`MSG_STREAM_READY`) until set.
-3. Stream the message word-by-word:
-   - For each fully-populated 4-byte chunk: write the 32 bits to `MLDSA_MSG[0]`
-     (offset `0x098`). The strobe defaults to `4'b1111`; no write to
-     `MSG_STROBE` is needed.
-   - For a final partial chunk of 1/2/3 bytes: write `MSG_STROBE` first
-     (`0001`/`0011`/`0111`), then write the packed partial word to `MSG[0]`.
-     Byte ordering is little-endian within the dword: e.g. for 2 valid bytes
-     the data is `{16'h0, b1, b0}`.
-   - For a 32-bit-aligned message (all chunks full): after the last full word
-     is written, write `MSG_STROBE = 4'b0000`, then write a dummy `MSG[0] = 0`
-     to flush the engine.
-4. Poll `MLDSA_STATUS[1]` (`VALID`) until set, then read the signature.
-
-The wrapper currently has one xfer FSM (`xfer_fsm`) that drives bulk
-range-based AHB transfers. Stream-msg needs a parallel mini-FSM that, between
-trigger and signature read, alternates STATUS-poll / `MSG[0]` write / optional
-`MSG_STROBE` write. The cleanest way is probably a new `Operation` field
-flagging stream-input, plus a streaming xfer state inserted between
-`main_fsm` cases 4 and 5 (start-of-op and wait-for-VALID).
+- Stream-message wrapper op `mldsa-sign-stream` implemented in
+  `src/abr_wrap.cpp`. New CLI flag `-strm <fn>` (default `strm_in.dat`)
+  reads a variable-length byte stream from disk; the op streams it word-by-word
+  to `MLDSA_MSG[0]` (`0x098`) with `MLDSA_MSG_STROBE` (`0x158`) handling for
+  the partial last word, exactly as the engine FSM in
+  `adams-bridge/.../abr_ctrl.sv` (`MLDSA_MSG_*` states) expects.
+- Protocol implemented:
+    1. Write `MLDSA_CTRL = SIGN | STREAM_MSG` (`0x44`).
+    2. Poll `MLDSA_STATUS[2]` (`MSG_STREAM_READY`).
+    3. Stream the message:
+       - Each full 4-byte chunk: little-endian dword to `MLDSA_MSG[0]`. No
+         strobe write needed (default is `4'b1111`).
+       - Final partial chunk of 1/2/3 bytes: write `MSG_STROBE` to
+         `0001`/`0011`/`0111`, then write the packed bytes to `MSG[0]` with
+         byte 0 of the partial at bits `[7:0]`.
+       - 32-bit-aligned message: after the last full word, write
+         `MSG_STROBE = 4'b0000` then a dummy `MSG[0] = 0` to flush.
+    4. Poll `MLDSA_STATUS[1]` (`VALID`), read the signature.
+- The engine internally prepends `0x00 || ctx_size` (then `ctx_reg[]`) to the
+  streamed bytes before SHAKE absorption. With no context configured this
+  equals `0x00 || 0x00`, matching the `mp = bytes([0,0]) + msg` framing in
+  `flow/mldsa-gen.py`.
+- Implementation: added `bool stream_input` to `Operation`, a new `stream_fsm`
+  sub-FSM that runs between the CTRL write and the output read-back, and a
+  `wait_complete_mask` global so the existing `wait_ready` chain can wait on
+  `MSG_STREAM_READY` (mask `0x4`) for the streaming handoff and on
+  `READY|VALID` for the signature.
+- Validation: regenerated vectors with `flow/mldsa-gen.py 3` (kg_seed `0x...03`),
+  produced reference signatures with the local fips204 reference (matching
+  `mldsa-gen.py`'s `hextolen` big-endian seed convention), then ran
+  `mldsa-sign-stream` for byte lengths 4, 64, 65, 66, 67. All five DUT
+  signatures matched the Python reference byte-for-byte. The 4 / 64 cases
+  exercise the aligned-flush path; 65 / 66 / 67 exercise the strobe + partial
+  byte path.
