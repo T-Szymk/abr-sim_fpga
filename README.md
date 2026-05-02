@@ -4,19 +4,21 @@
 
 Pre-silicon trace generator for the
 [Adam's Bridge](https://github.com/chipsalliance/adams-bridge)
-PQC (Dilithium) hardware accelerator from Caliptra 2.0 / Chips Alliance.
-Generates "toggle traces" (and logic signal dumps) for the
-~40000-cycle ML-DSA-87 signing operation in under 1 minute.
+PQC hardware accelerator from Caliptra / Chips Alliance. It runs the Adam's
+Bridge `abr_top` RTL under Verilator and generates toggle traces for FIPS 204
+ML-DSA-87 and FIPS 203 ML-KEM-1024 operations.
 
 Dilithium is another name for
 [FIPS 204 ML-DSA](https://doi.org/10.6028/NIST.FIPS.204)
-(The Module-Lattice-Based Digital Signature Standard.)
+(The Module-Lattice-Based Digital Signature Standard). Kyber is another name
+for [FIPS 203 ML-KEM](https://doi.org/10.6028/NIST.FIPS.203)
+(The Module-Lattice-Based Key-Encapsulation Mechanism Standard).
 
 What's here:
 ```
 abr-sim
 ├── Makefile      # Main makefile
-├── adams-bridge  # Submodule: Adam's Bridge RTL repo (v1.0.1)
+├── adams-bridge  # Submodule: Adam's Bridge RTL repo (v2.0.3)
 ├── doc           # misc documentation; hardwear.io presentation
 ├── flow          # Python and shell scripts
 ├── plot          # Gnuplot scripts for TVLA traces
@@ -34,36 +36,42 @@ As a prerequisite, you will need standard C toolchains and
 The python3 parts use pycryptodome; you may have to install it
 (`pip3 install pycryptodome`).
 
-Fetch the repo. Note that the `adams-bridge' submodule directory needs to point
-to a correct release, currently v1.0.1 (May 16, 2025):
+Fetch the repo. Note that the `adams-bridge` submodule directory needs to point
+to a correct release, currently v2.0.3:
 ```
 $ git clone --recurse-submodules https://github.com/ml-dsa/abr-sim.git
 ...
-Submodule path 'adams-bridge': checked out '1cad0334eebf66173f80500f4fc0b628f7cf3335'
+Submodule path 'adams-bridge': checked out 'b77e3d8...'
 ```
 
-You're ready to build the main binaries, `readvcd` and `mldsa_wrap` using
-the Makefile. Verilator build will take a minute or two.
+You're ready to build the main binaries, `readvcd` and `abr_wrap`, using the
+Makefile. `abr_wrap` is the current v2 executable; old v1 notes and examples may
+refer to `mldsa_wrap`, but the generic v2 driver is named `abr_wrap` because it
+drives both ML-DSA and ML-KEM. Verilator build can take a few minutes.
 ```
 $ make
 gcc -O2 -Wall -Wextra -o readvcd src/readvcd.c
 mkdir -p _build
 (..)
-g++  mldsa_wrap.o verilated.o verilated_vcd_c.o verilated_threads.o Vmldsa_wrap__ALL.a    -pthread -lpthread -latomic   -o Vmldsa_wrap
-rm Vmldsa_wrap__ALL.verilator_deplist.tmp
-make[1]: Leaving directory '/home/mjos/src/abr-sim/_build'
-cp -p _build/Vmldsa_wrap mldsa_wrap
+g++  abr_wrap.o verilated.o verilated_vcd_c.o verilated_threads.o Vabr_wrap__ALL.a    -pthread -lpthread -latomic   -o Vabr_wrap
+rm Vabr_wrap__ALL.verilator_deplist.tmp
+make[1]: Leaving directory '<repo>/_build'
+cp -p _build/Vabr_wrap abr_wrap
 ```
 
-##  mldsa_wrap
+##  abr_wrap
 
-The executable `mldsa_wrap` provides full RTL simulation of Adam's Bridge,
+The executable `abr_wrap` provides full RTL simulation of Adam's Bridge,
 together with a wrapper that allows one to load/store files from command line.
 ```
-$ ./mldsa_wrap
-USAGE: mldsa_wrap [options] [operation]
+$ ./abr_wrap
+USAGE: abr_wrap [options] [operation]
 
-Operation is one of: keygen, sign, verify, kgsign
+Operation is one of:
+    mldsa-keygen, mldsa-sign, mldsa-verify, mldsa-kgsign
+    mldsa-sign-extmu, mldsa-sign-stream
+    mlkem-keygen, mlkem-encaps, mlkem-decaps, mlkem-kgdecaps
+    keygen, sign, verify, kgsign are aliases for the mldsa-* operations
 
 Options (with default values):
     -t      <n>     timeout in cycles (none)
@@ -76,14 +84,21 @@ Options (with default values):
     -rnd    <fn>    signing rnd input (rnd_in.dat)
     -ent    <fn>    signing sca entropy input (ent_in.dat)
     -vfy    <fn>    verify result output block (none)
+    -d      <fn>    ML-KEM seed d (seed_d_in.dat)
+    -z      <fn>    ML-KEM seed z (seed_z_in.dat)
+    -msg    <fn>    ML-KEM message/randomness (msg_in.dat)
+    -ek     <fn>    ML-KEM encapsulation key (ek_in.dat, ek_out.dat)
+    -dk     <fn>    ML-KEM decapsulation key (dk_in.dat, dk_out.dat)
+    -ct     <fn>    ML-KEM ciphertext (ct_in.dat, ct_out.dat)
+    -ss     <fn>    ML-KEM shared secret output (ss_out.dat)
 ```
 
-#### Example: mldsa_wrap
+#### Example: abr_wrap
 
 For example, we may start the keygen + signing operation without any
 parameters (in this case, the code will assume that the keygen seed is zero, and the message hash being signed is also zero:
 ```
-./mldsa_wrap kgsign
+./abr_wrap mldsa-kgsign
 [INIT]  1
 [STAT]  4   fsm= 1  status= 1 <READY>
 [XFER]  14  fsm= 2
@@ -140,7 +155,7 @@ All parameters are optional:
     ML-DSA.KeyGen_internal(). This allows fix-random TVLA testing.
 
 The Python program will create the following files, which can be
-directly used as inputs for `mldsa_wrap`:
+directly used as inputs for `abr_wrap`:
 
 *   `hash_in.dat`: 64-byte message hash to be signed.
 *   `pk_in.dat`: 2592-byte ML-DSA-87 public (verification) key.
@@ -149,7 +164,7 @@ directly used as inputs for `mldsa_wrap`:
     It can be all zeros, signifying deterministic signing.
 
 Additionally, the program creates 4627-byte "expected" signature `sig_in.dat`,
-which is not read by `mldsa_wrap`, but can be used to compare to `sig_out.dat`
+which is not read by `abr_wrap`, but can be used to compare to `sig_out.dat`
 created by the RTL model. They should match exactly if the DUT is operating
 correctly.
 
@@ -170,7 +185,7 @@ iteartion (counter `kappa 0`).
 Given that all default filenames are used, we may generate a VCD trace
 `trace.vcd` with these inputs:
 ```
-./mldsa_wrap -vcd trace.vcd sign
+./abr_wrap -vcd trace.vcd mldsa-sign
 [INIT]  1
 [STAT]  4   fsm= 1  status= 1 <READY>
 [XFER]  14  fsm= 2
@@ -205,6 +220,93 @@ Also a 24 GB (!!) tracefile is generated:
 ```
 $ ls -l trace.vcd
 -rw-rw-r-- 1 mjos mjos 25759748411 May 27 19:09 trace.vcd
+```
+
+##  ML-KEM trace acquisition
+
+The Python program `flow/mlkem-gen.py` uses the FIPS 203 ML-KEM implementation
+in `flow/fips203.py` to generate ML-KEM-1024 test vectors for Adam's Bridge.
+
+```
+$ python3 flow/mlkem-gen.py --help
+USAGE: mlkem-gen.py [operation] [d-hex] [z-hex] [m-hex]
+
+operation: keygen, encaps, decaps, kgdecaps, all
+defaults: operation=all, d=0, z=0, m=0
+```
+
+The generator writes the default files consumed by `abr_wrap`:
+
+- `seed_d_in.dat`: 32-byte ML-KEM seed `d`.
+- `seed_z_in.dat`: 32-byte ML-KEM seed `z`.
+- `msg_in.dat`: 32-byte encapsulation randomness/message `m`.
+- `ek_in.dat`: ML-KEM-1024 encapsulation key.
+- `dk_in.dat`: ML-KEM-1024 decapsulation key.
+- `ct_in.dat`: ML-KEM-1024 ciphertext.
+- `ss_in.dat`: expected 32-byte shared secret for comparison.
+
+#### Example: one ML-KEM keygen trace
+
+```
+$ python3 flow/mlkem-gen.py keygen 01 02 00
+$ ./abr_wrap -t 20000 -vcd trace.vcd mlkem-keygen
+$ cmp ek_out.dat ek_in.dat
+$ cmp dk_out.dat dk_in.dat
+```
+
+Keygen reads `seed_d_in.dat`, `seed_z_in.dat`, and optional `ent_in.dat`, then
+writes `ek_out.dat` and `dk_out.dat`.
+
+#### Example: one ML-KEM encapsulation trace
+
+```
+$ python3 flow/mlkem-gen.py encaps 01 02 03
+$ ./abr_wrap -t 30000 -vcd trace.vcd mlkem-encaps
+$ cmp ct_out.dat ct_in.dat
+$ cmp ss_out.dat ss_in.dat
+```
+
+Encapsulation reads `ek_in.dat`, `msg_in.dat`, and optional `ent_in.dat`, then
+writes `ct_out.dat` and `ss_out.dat`.
+
+#### Example: one ML-KEM decapsulation trace
+
+```
+$ python3 flow/mlkem-gen.py decaps 01 02 03
+$ ./abr_wrap -t 30000 -vcd trace.vcd mlkem-decaps
+$ cmp ss_out.dat ss_in.dat
+```
+
+Decapsulation reads `dk_in.dat`, `ct_in.dat`, and optional `ent_in.dat`, then
+writes `ss_out.dat`.
+
+#### Example: ML-KEM FIFO trace scripts
+
+For large trace sets, do not write VCD files to disk. The ML-KEM scripts use a
+FIFO between `abr_wrap` and `readvcd`, just like the ML-DSA scripts:
+
+```
+$ ./flow/gen-kem-kg.sh 20000 flow/readvcd-full.prm kemkg-a 1000
+$ ./flow/gen-kem-enc-fix.sh 30000 flow/readvcd-full.prm kemenc-fix-a 1000
+$ ./flow/gen-kem-enc-rnd.sh 30000 flow/readvcd-full.prm kemenc-rnd-a 1000
+$ ./flow/gen-kem-dec-fix.sh 30000 flow/readvcd-full.prm kemdec-fix-a 1000
+$ ./flow/gen-kem-dec-rnd.sh 30000 flow/readvcd-full.prm kemdec-rnd-a 1000
+```
+
+The fixed/random split is:
+
+- `gen-kem-kg.sh`: keygen, random `d` and `z`.
+- `gen-kem-enc-fix.sh`: encapsulation with fixed `m`, random keypair.
+- `gen-kem-enc-rnd.sh`: encapsulation with random `d`, `z`, and `m`.
+- `gen-kem-dec-fix.sh`: decapsulation with fixed decapsulation key, random ciphertext.
+- `gen-kem-dec-rnd.sh`: decapsulation with random `d`, `z`, and `m`.
+
+Pass any hierarchy-focused preset as the second argument to localize leakage:
+
+```
+$ ./flow/gen-kem-enc-rnd.sh 30000 flow/readvcd-ntt.prm kemenc-ntt 1000
+$ ./flow/gen-kem-dec-rnd.sh 30000 flow/readvcd-sha3.prm kemdec-sha3 1000
+$ ./flow/gen-kem-dec-rnd.sh 30000 flow/readvcd-mlkem-codec.prm kemdec-codec 1000
 ```
 
 ##  readvcd
@@ -296,17 +398,17 @@ from the preset file are passed literally instead of being expanded against
 files in the trace directory.
 
 ```
-$ PYTHON=/home/mjos/mf3/bin/python3 ./flow/gen-kem-kg.sh 20000 flow/readvcd-full.prm kg-full 100
-$ PYTHON=/home/mjos/mf3/bin/python3 ./flow/gen-kem-kg.sh 20000 flow/readvcd-ntt.prm kg-ntt 100
-$ PYTHON=/home/mjos/mf3/bin/python3 ./flow/gen-kem-kg.sh 20000 flow/readvcd-sha3.prm kg-sha3 100
+$ ./flow/gen-kem-kg.sh 20000 flow/readvcd-full.prm kg-full 100
+$ ./flow/gen-kem-kg.sh 20000 flow/readvcd-ntt.prm kg-ntt 100
+$ ./flow/gen-kem-kg.sh 20000 flow/readvcd-sha3.prm kg-sha3 100
 ```
 
 For ML-DSA signing, use the same pattern:
 
 ```
-$ PYTHON=/home/mjos/mf3/bin/python3 ./flow/gen-fix.sh 50000 flow/readvcd-full.prm sign-full 1000
-$ PYTHON=/home/mjos/mf3/bin/python3 ./flow/gen-fix.sh 50000 flow/readvcd-ntt.prm sign-ntt 1000
-$ PYTHON=/home/mjos/mf3/bin/python3 ./flow/gen-fix.sh 50000 flow/readvcd-keccak.prm sign-keccak 1000
+$ ./flow/gen-fix.sh 50000 flow/readvcd-full.prm sign-full 1000
+$ ./flow/gen-fix.sh 50000 flow/readvcd-ntt.prm sign-ntt 1000
+$ ./flow/gen-fix.sh 50000 flow/readvcd-keccak.prm sign-keccak 1000
 ```
 
 #### Example: omit threshold when using filters

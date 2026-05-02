@@ -18,7 +18,7 @@ Before making structural changes (touching `rtl/abr_wrap.sv`, `rtl/abr_seq.sv.pa
 
 - Verilator >= 5.037 (development version; older versions may not work)
 - Standard C/C++ toolchain (`gcc`, `g++`)
-- Python 3 with `pycryptodome` (provides `Crypto.Hash`) — used by `flow/fips204.py`, `flow/fips203.py`, `flow/mldsa-gen.py`, `flow/mlkem-gen.py`. The system `python3` typically lacks this; bash trace scripts honor `PYTHON=...` (e.g. `PYTHON=/home/mjos/mf3/bin/python3`).
+- Python 3 with `pycryptodome` (provides `Crypto.Hash`) — used by `flow/fips204.py`, `flow/fips203.py`, `flow/mldsa-gen.py`, `flow/mlkem-gen.py`. Bash trace scripts honor `PYTHON=...` and default to `python3`.
 - The `adams-bridge` git submodule must be checked out at the pinned release (currently v2.0.3, commit `b77e3d8`). After fresh clone: `git submodule update --init --recursive`.
 
 ## Build
@@ -58,6 +58,8 @@ mkfifo trace.vcd
 ./abr_wrap -t $maxcyc -vcd trace.vcd mldsa-sign | tee run.log
 ```
 
+The `set -f` subshell is load-bearing: the prm files contain literal `*` glob patterns (e.g. `-i *top0.ntt_gen*.ntt_top_inst*`), and the unquoted `$vcdprm` expansion would pathname-glob them against files in the trace dir's cwd otherwise. Word splitting still happens inside the subshell so multi-token prms tokenize correctly. Don't replace the subshell with a plain `&` background — and don't quote `$vcdprm`, that would defeat the word splitting.
+
 Trace scripts:
 
 - ML-DSA: `gen-fix.sh` (fixed key, random rnd), `gen-rnd.sh` (fully random sign), `gen-kgr.sh` (keygen+sign combo).
@@ -78,6 +80,12 @@ Hierarchy-focused `readvcd` presets can be passed anywhere a script asks for `<r
 - `flow/readvcd-memory.prm`: wrapper memory/export signals.
 
 The `plot/` directory has a `plot.sh` that turns a tvla output (e.g. `tvla11k.txt`) into the trace/avg/std/tvla gnuplot figures used in `doc/20250530-hardwear-abr.pdf`.
+
+## Reference docs
+
+- `doc/mldsa_fsm.md` and `doc/mlkem_fsm.md` annotate every `[seq]` marker emitted by `rtl/abr_seq_decode.sv`, mapping each FSM address (and its range-decoded `+offs` form) to the executed `ABR_UOP_*` opcode and the matching FIPS 204 / FIPS 203 algorithm + line. Use these when interpreting `[seq]` lines in a run log or relating an `abr_seq.sv` ROM slot to the standardized pseudocode. Cycle counts in the example traces are illustrative — `abr_wrap`'s AHB-setup window varies the absolute values; addresses and names are the stable part.
+- `doc/nist.fips.204.pdf` and `doc/nist.fips.203.pdf` are the official ML-DSA and ML-KEM specifications (cited by algorithm number and line in the FSM docs).
+- `doc/20250530-hardwear-abr.pdf` is the prior-art TVLA presentation that drove the trace generator's design.
 
 ## Default file conventions
 
