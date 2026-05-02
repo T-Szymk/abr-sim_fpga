@@ -209,40 +209,120 @@ $ ls -l trace.vcd
 
 ##  readvcd
 
-**readvcd** is a C program that parses the ascii VCD file and counts
-the total number of signal toggles at each time step:
+**readvcd** is a C program that parses an ASCII VCD stream and counts signal
+toggles per DUT cycle. The timebase is a cycle counter inside the RTL hook; for
+the v2 Adam's Bridge wrapper the canonical substring is `dec.cyc`.
+
 ```
-$ ./readvcd trace.vcd
+$ ./readvcd
 Usage: readvcd <file.vcd> <time signal> [threshold] [report cycles]
+       readvcd <file.vcd> <time signal> [threshold] [-i glob]... [-e glob]... [report cycles]
 ```
-Two first arguments are needed; in addition to the VCD file, the "time signal" is some cycle counter contained in the design itself; partial string
-matching is used to find it.
 
-We can create a 900 kB `toggle.txt` output from the `trace.vcd` file created
-in the previous example. The cycle-counting timing signal `dec_prim.cyc` from our
-instrumentation in `rtl/mldsa_seq_decode.sv` is used:
+The first two arguments are the VCD file and a substring used to find the cycle
+counter signal. The optional threshold suppresses small per-cycle toggle counts
+from the normal `[togd]` output. Additional numeric arguments request verbose
+`[sigd]` signal reports for specific cycles.
 
+`readvcd` can also restrict toggle counting to selected VCD hierarchy paths:
 
-#### Example: readvcd
+- `-i <glob>` / `--include <glob>`: include signals whose full hierarchy matches
+  the glob.
+- `-e <glob>` / `--exclude <glob>`: exclude matching signals.
+- If no include is given, all signals are counted as before.
+- Excludes win over includes.
+- The cycle counter is still tracked even when it is outside the selected
+  hierarchy; filters only decide which identifiers contribute to `[togd]`.
+
+The flow keeps hierarchy presets as `.prm` files because the trace scripts pass
+their contents directly to `readvcd`.
+
+| File | Counted hierarchy |
+| --- | --- |
+| `flow/readvcd.prm` | Full-core default (`dec.cyc 1`) |
+| `flow/readvcd-full.prm` | Full-core baseline, explicit alias |
+| `flow/readvcd-control.prm` | `abr_ctrl_inst` and `abr_reg_inst` |
+| `flow/readvcd-sampler.prm` | `sampler_top_inst`, including SHA3 |
+| `flow/readvcd-sha3.prm` | `sampler_top_inst.sha3_inst` |
+| `flow/readvcd-keccak.prm` | `sampler_top_inst.sha3_inst.u_keccak` |
+| `flow/readvcd-ntt.prm` | generated `ntt_gen*.ntt_top_inst` instances |
+| `flow/readvcd-mldsa-aux.prm` | ML-DSA encode/decode/check auxiliary blocks |
+| `flow/readvcd-mlkem-codec.prm` | ML-KEM compress/decompress blocks |
+| `flow/readvcd-memory.prm` | wrapper memory/export signals |
+
+#### Example: full-core VCD conversion
+
 ```
-$./readvcd trace.vcd dec_prim.cyc | tee toggle.txt
+$ ./readvcd trace.vcd dec.cyc 1 | tee toggle-full.txt
 [info] toggle threshold: 1
-trace.vcd preamble: 286124 lines, 165733 signames, 100160 ids, max var 135168, tot 2595037 bits.
-[info] timing signal: TOP.mldsa_wrap.top0.mldsa_ctrl_inst.mldsa_seq_prim_inst.dec_prim.cyc[25:0]
-#       0 [togd]  16
-#       1 [togd]  8561
-#       2 [togd]  28240
-#       3 [togd]  1721
-#       4 [togd]  19954
-#    2553 [togd]  138185
-#    2554 [togd]  213
+trace.vcd preamble: 70121 lines, 57126 signames, 30013 ids, max var 3188, tot 416100 bits.
+[info] selected hierarchy: 416100 / 416100 bits counted
+[info] timing signal: TOP.abr_wrap.top0.abr_ctrl_inst.abr_seq_inst.dec.cyc[25:0]
+#      84 [togd]  1
+#      85 [togd]  158
 ...
-#   39190 [togd]  29942
-#   39191 [togd]  2456
-trace.vcd total: 646608046 lines, last time 391930  cycle 39192.
 ```
-Here each `# c [togd] n` line simply signfies that there were n toggles at
-cycle interval c.
+
+Each `# c [togd] n` line means that `n` selected signal bits toggled during DUT
+cycle interval `c`.
+
+#### Example: focused NTT count from an existing VCD
+
+```
+$ ./readvcd trace.vcd dec.cyc 1 -i '*top0.ntt_gen*.ntt_top_inst*' \
+    | tee toggle-ntt.txt
+[info] selected hierarchy: 283117 / 416100 bits counted includes: *top0.ntt_gen*.ntt_top_inst*
+```
+
+This is useful after a TVLA spike in a full-core trace: rerun `readvcd` on the
+same VCD with NTT, sampler, SHA3/Keccak, control, memory, or codec filters and
+compare which focused trace still carries the spike.
+
+#### Example: exclude SHA3 from the sampler region
+
+```
+$ ./readvcd trace.vcd dec.cyc 1 \
+    -i '*top0.sampler_top_inst*' \
+    -e '*top0.sampler_top_inst.sha3_inst*' \
+    | tee toggle-sampler-no-sha3.txt
+```
+
+#### Example: use a preset with FIFO acquisition
+
+The shell trace scripts take `<readvcd.prm>` as their second argument, so the
+same fixed/random acquisition can be repeated with different hierarchy presets.
+Internally, the scripts run `readvcd` in a `set -f` subshell so glob patterns
+from the preset file are passed literally instead of being expanded against
+files in the trace directory.
+
+```
+$ PYTHON=/home/mjos/mf3/bin/python3 ./flow/gen-kem-kg.sh 20000 flow/readvcd-full.prm kg-full 100
+$ PYTHON=/home/mjos/mf3/bin/python3 ./flow/gen-kem-kg.sh 20000 flow/readvcd-ntt.prm kg-ntt 100
+$ PYTHON=/home/mjos/mf3/bin/python3 ./flow/gen-kem-kg.sh 20000 flow/readvcd-sha3.prm kg-sha3 100
+```
+
+For ML-DSA signing, use the same pattern:
+
+```
+$ PYTHON=/home/mjos/mf3/bin/python3 ./flow/gen-fix.sh 50000 flow/readvcd-full.prm sign-full 1000
+$ PYTHON=/home/mjos/mf3/bin/python3 ./flow/gen-fix.sh 50000 flow/readvcd-ntt.prm sign-ntt 1000
+$ PYTHON=/home/mjos/mf3/bin/python3 ./flow/gen-fix.sh 50000 flow/readvcd-keccak.prm sign-keccak 1000
+```
+
+#### Example: omit threshold when using filters
+
+The threshold defaults to `1`, so these two forms are equivalent:
+
+```
+$ ./readvcd trace.vcd dec.cyc 1 -i '*top0.ntt_gen*.ntt_top_inst*'
+$ ./readvcd trace.vcd dec.cyc -i '*top0.ntt_gen*.ntt_top_inst*'
+```
+
+Negative numeric thresholds still parse as thresholds:
+
+```
+$ ./readvcd trace.vcd dec.cyc -1 -i '*top0.ntt_gen*.ntt_top_inst*'
+```
 
 
 ##  Further processing
@@ -266,5 +346,3 @@ In this case, the t-value is large (77.4) as the fixed traces have zero standard
 
 The `plot` directory contains a script `plot.sh` that was used to create
 the trace and tvla plots in the presentation.
-
-

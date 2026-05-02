@@ -1,0 +1,1 @@
+dec.cyc 1 -i *top0.abr_ctrl_inst* -i *top0.abr_reg_inst*

@@ -331,22 +331,95 @@ Progress:
   completed in ~6740 cycles, `[seq]` markers covered `MLKEM_KG_S`+0 through
   `MLKEM_KG_E`, and the FIFO+readvcd pipeline emitted 6739 `[togd]` samples.
 
-## Stage 11: `[TODO]` Trace Resolution Enhancements
+## Stage 11: `[DONE]` Trace Resolution Enhancements
 
 Keep basic acquisition independent from selective hierarchy filtering.
 
-After acquisition works, add optional hierarchy-focused configs for:
+Added optional hierarchy-focused `readvcd` configs for:
 
 - NTT/PWM
-- CBD sampler
+- sampler/SHA3/Keccak
 - compression/decompression
-- SHA3
 - memory/control
+
+Implementation:
+
+- `src/readvcd.c` remains backward-compatible with the old argument shape
+  (`readvcd trace.vcd dec.cyc 1`) and now accepts hierarchy filters after the
+  optional threshold:
+    - `-i <glob>` / `--include <glob>` adds an included VCD hierarchy pattern.
+    - `-e <glob>` / `--exclude <glob>` removes a hierarchy pattern.
+    - With no includes, all signals are counted as before.
+    - Excludes win over includes.
+    - The threshold is now optional: if `argv[3]` looks like a flag (`-`
+      followed by a non-digit), it is treated as a flag and threshold defaults
+      to `1`. `-1`/`-2` etc. still parse as numeric thresholds.
+- The cycle signal is still resolved and updated even when it is outside the
+  selected hierarchy; filters only decide whether a VCD identifier contributes
+  to the per-cycle toggle sum.
+- `flow/gen-*.sh` trace scripts wrap the `readvcd` invocation in a
+  `( set -f; ... ) &` subshell so the unquoted `$vcdprm` expansion does not
+  pathname-glob the prm file's `*` patterns against files in the trace dir's
+  cwd. Word splitting still happens, so multi-token prm content like
+  `-i pat -i pat2` tokenizes as before.
+- Presets added under `flow/`:
+    - `readvcd-full.prm` / existing `readvcd.prm`: full-core baseline.
+    - `readvcd-control.prm`: ABR control and register block.
+    - `readvcd-sampler.prm`: sampler top, including SHA3.
+    - `readvcd-sha3.prm`: SHA3 block below the sampler.
+    - `readvcd-keccak.prm`: Keccak round/storage below SHA3.
+    - `readvcd-ntt.prm`: generated NTT instances.
+    - `readvcd-mldsa-aux.prm`: ML-DSA auxiliary encode/decode/check blocks.
+    - `readvcd-mlkem-codec.prm`: ML-KEM compress/decompress blocks.
+    - `readvcd-memory.prm`: wrapper memory/export signals.
+
+Usage examples:
+
+```
+# Convert an existing VCD with the full-core default.
+./readvcd trace.vcd dec.cyc 1 > toggle-full.txt
+
+# Count only generated NTT instances.
+./readvcd trace.vcd dec.cyc 1 -i '*top0.ntt_gen*.ntt_top_inst*' \
+    > toggle-ntt.txt
+
+# Count sampler logic but remove SHA3/Keccak underneath it.
+./readvcd trace.vcd dec.cyc 1 \
+    -i '*top0.sampler_top_inst*' \
+    -e '*top0.sampler_top_inst.sha3_inst*' \
+    > toggle-sampler-no-sha3.txt
+
+# Run the existing FIFO trace scripts with a focused preset.
+PYTHON=/home/mjos/mf3/bin/python3 ./flow/gen-kem-kg.sh 20000 \
+    flow/readvcd-ntt.prm kg-ntt 100
+
+PYTHON=/home/mjos/mf3/bin/python3 ./flow/gen-fix.sh 50000 \
+    flow/readvcd-keccak.prm sign-keccak 1000
+```
 
 Validation:
 
-- Full-core toggle traces still work.
-- Optional focused configs produce shorter, interpretable traces.
+- `make readvcd` passes with `-Wall -Wextra`.
+- A synthetic VCD smoke test confirmed full-core, sampler-only, and NTT-only
+  filters produce different toggle counts while sharing the same `dec.cyc`
+  timing signal.
+- Existing trace scripts accept the new presets unchanged because they still
+  expand the `.prm` file into `readvcd` arguments. Smoke run:
+  `PYTHON=/home/mjos/mf3/bin/python3 ./flow/gen-kem-kg.sh 20000
+  flow/readvcd-ntt.prm codex2 1`.
+    - `readvcd` selected `283117 / 416100` VCD bits for
+      `*top0.ntt_gen*.ntt_top_inst*`.
+    - The ML-KEM keygen trace completed normally and emitted NTT-focused
+      `[togd]` samples.
+- Cross-checked nine presets against a 228 MB on-disk `mlkem-keygen` VCD:
+  bit subset relationships hold (`sampler ⊃ sha3 ⊃ keccak`), `full` minus
+  `exclude(*sampler_top_inst*)` reproduces the sampler totals exactly, and
+  the cycle counter still ticks even when it is outside the include filter
+  or explicitly excluded (`-e *abr_seq_inst*`), confirming that filtering
+  affects only `bl`/`hd` accumulation.
+- Glob hardening verified: with a decoy file `top0.ntt_gen0.ntt_top_inst.decoy`
+  in cwd, the unprotected `echo $vcdprm` yields the decoy filename, while the
+  patched `( set -f; echo $vcdprm )` preserves the literal pattern.
 
 ## Stage 12: `[DONE]` New ML-DSA Modes
 

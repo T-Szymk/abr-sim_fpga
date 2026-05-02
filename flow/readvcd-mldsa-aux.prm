@@ -1,0 +1,1 @@
+dec.cyc 1 -i *top0.power2round_inst* -i *top0.decompose_inst* -i *top0.skencode_inst* -i *top0.skdecode_inst* -i *top0.makehint_inst* -i *top0.norm_check_inst* -i *top0.sigencode_z_inst* -i *top0.pkdecode_inst* -i *top0.sigdecode_z_inst* -i *top0.sigdecode_h_inst*

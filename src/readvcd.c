@@ -21,7 +21,17 @@ typedef struct {
     size_t o;               //  first signal name
     size_t u;               //  how many times updated
     char *s;                //  pointer to state
+    bool count;             //  include in toggle count
 } var_t;
+
+#define FILTER_MAX 64
+
+typedef struct {
+    const char *inc[FILTER_MAX];
+    const char *exc[FILTER_MAX];
+    int inc_n;
+    int exc_n;
+} filter_t;
 
 char *signame = NULL;       //  buffer for signal names
 size_t signame_sz = 0;      //  size
@@ -112,12 +122,12 @@ int64_t bin_to_int(const char *s, int d)
     return x;
 }
 
-char *get_signame(const var_t *v)
+char *get_signame_offs(size_t oi)
 {
     int i;
     char *s;
 
-    s = &signame[offs[v->o]];
+    s = &signame[offs[oi]];
     i = strlen(s);
     while (i > 0 && !isspace(s[i - 1])) {
         i--;
@@ -125,8 +135,59 @@ char *get_signame(const var_t *v)
     return &s[i];
 }
 
+char *get_signame(const var_t *v)
+{
+    return get_signame_offs(v->o);
+}
+
+static bool glob_match(const char *pat, const char *s)
+{
+    if (*pat == 0)
+        return *s == 0;
+    if (*pat == '*') {
+        while (pat[1] == '*')
+            pat++;
+        if (glob_match(pat + 1, s))
+            return true;
+        return *s != 0 && glob_match(pat, s + 1);
+    }
+    if (*pat == '?')
+        return *s != 0 && glob_match(pat + 1, s + 1);
+    return *pat == *s && glob_match(pat + 1, s + 1);
+}
+
+static bool glob_match_any(const char * const *pat, int pat_n, const char *s)
+{
+    int i;
+
+    for (i = 0; i < pat_n; i++) {
+        if (glob_match(pat[i], s))
+            return true;
+    }
+    return false;
+}
+
+static bool filter_match_var(const filter_t *filter, const var_t *v)
+{
+    int i;
+    bool included;
+
+    for (i = 0; i < v->n; i++) {
+        if (glob_match_any(filter->exc, filter->exc_n, get_signame_offs(v->o + i)))
+            return false;
+    }
+
+    if (filter->inc_n == 0)
+        return true;
+
+    included = false;
+    for (i = 0; i < v->n; i++)
+        included |= glob_match_any(filter->inc, filter->inc_n, get_signame_offs(v->o + i));
+    return included;
+}
+
 int read_vcd(const char *fn, const char *timing,
-                int64_t thresh, int64_t *dump_tim)
+                int64_t thresh, int64_t *dump_tim, const filter_t *filter)
 {
     FILE *fp = NULL;
     int     fail = 0;
@@ -150,7 +211,7 @@ int read_vcd(const char *fn, const char *timing,
     bool    sigd = false;       //  dump signal changes?
     var_t   *cyc_v = NULL;      //  signal vith cycle counter
 
-    size_t i, j, l, n;
+    size_t i, j, l, n, selected_bits;
     int x, y, k, d, scope;
     bool flag;
 
@@ -315,6 +376,7 @@ int read_vcd(const char *fn, const char *timing,
             var[var_n].o = i;
             var[var_n].u = 0;
             var[var_n].s = NULL;
+            var[var_n].count = true;
             var_n++;
         } else {
             if (var[var_n - 1].d != d) {
@@ -350,6 +412,25 @@ int read_vcd(const char *fn, const char *timing,
     printf("%s preamble: %lu lines, %lu signames, %lu ids, "
             "max var %d, tot %zu bits.\n",
             fn, line, offs_n, var_n, max_dim, st_sz);
+
+    selected_bits = 0;
+    for (i = 0; i < var_n; i++) {
+        var[i].count = filter_match_var(filter, &var[i]);
+        if (var[i].count)
+            selected_bits += var[i].d;
+    }
+    printf("[info] selected hierarchy: %zu / %zu bits counted", selected_bits, st_sz);
+    if (filter->inc_n > 0) {
+        printf(" includes:");
+        for (i = 0; i < (size_t) filter->inc_n; i++)
+            printf(" %s", filter->inc[i]);
+    }
+    if (filter->exc_n > 0) {
+        printf(" excludes:");
+        for (i = 0; i < (size_t) filter->exc_n; i++)
+            printf(" %s", filter->exc[i]);
+    }
+    printf("\n");
 
     //  initialize state array
     state = malloc(st_sz);
@@ -451,11 +532,13 @@ int read_vcd(const char *fn, const char *timing,
                 v->s[i] = s[i];
             }
 
-            if (sigd && sd >= thresh) {
+            if (v->count && sigd && sd >= thresh) {
                 printf("[sigd] %8ld  %ld_%s\n", sd, cyc, get_signame(v));
             }
-            bl += d;
-            hd += sd;
+            if (v->count) {
+                bl += d;
+                hd += sd;
+            }
         } else {
             memcpy(v->s, s, d);
         }
@@ -513,36 +596,57 @@ int main(int argc, char **argv)
     int i, j;
     int64_t *dump_tim = NULL;
     int64_t thresh = 1;
+    filter_t filter = { 0 };
 
     if (argc < 3) {
         fprintf(stderr, "Usage: readvcd <file.vcd> <time signal>"
-                        " [threshold] [report cycles]\n");
+                        " [threshold] [report cycles]\n"
+                        "       readvcd <file.vcd> <time signal> [threshold]"
+                        " [-i glob]... [-e glob]... [report cycles]\n");
         return fail;
     }
-    if (argc > 3) {
+    int next = 3;
+    if (argc > 3 && !(argv[3][0] == '-' && !isdigit((unsigned char) argv[3][1]))) {
         thresh = strtoll(argv[3], NULL, 0);
+        next = 4;
     }
     printf("[info] toggle threshold: %ld\n", thresh);
 
-    if (argc > 4) {
-        dump_tim = calloc(argc - 3, sizeof(int64_t));
+    if (next < argc) {
+        dump_tim = calloc(argc - next + 1, sizeof(int64_t));
         if (dump_tim == NULL)
             exit(-1);
         j = 0;
-        for (i = 4; i < argc; i++) {
-            dump_tim[j++] = strtoll(argv[i], NULL, 0);
+        for (i = next; i < argc; i++) {
+            if (strcmp(argv[i], "-i") == 0 || strcmp(argv[i], "--include") == 0) {
+                if (i + 1 >= argc || filter.inc_n >= FILTER_MAX) {
+                    fprintf(stderr, "ERROR  bad include filter\n");
+                    return 2;
+                }
+                filter.inc[filter.inc_n++] = argv[++i];
+            } else if (strcmp(argv[i], "-e") == 0 || strcmp(argv[i], "--exclude") == 0) {
+                if (i + 1 >= argc || filter.exc_n >= FILTER_MAX) {
+                    fprintf(stderr, "ERROR  bad exclude filter\n");
+                    return 2;
+                }
+                filter.exc[filter.exc_n++] = argv[++i];
+            } else {
+                dump_tim[j++] = strtoll(argv[i], NULL, 0);
+            }
         }
         dump_tim[j++] = -1;
 
-        printf("[info] report cycles:");
-        for (i = 0; dump_tim[i] >= 0; i++) {
-            printf(" %ld", dump_tim[i]);
+        if (dump_tim[0] >= 0) {
+            printf("[info] report cycles:");
+            for (i = 0; dump_tim[i] >= 0; i++) {
+                printf(" %ld", dump_tim[i]);
+            }
+            printf("\n");
         }
-        printf("\n");
     }
 
     //  read the file
-    fail += read_vcd(argv[1], argv[2], thresh, dump_tim);
+    fail += read_vcd(argv[1], argv[2], thresh, dump_tim, &filter);
 
     if (dump_tim != NULL) {
         free(dump_tim);
@@ -550,4 +654,3 @@ int main(int argc, char **argv)
 
     return fail;
 }
-

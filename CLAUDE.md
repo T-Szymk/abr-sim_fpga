@@ -10,7 +10,7 @@ Pre-silicon trace generator for the [Adam's Bridge](https://github.com/chipsalli
 
 The repo is on `adams-bridge` v2.0.3 (commit `b77e3d8`). The v2 migration introduced `abr_top` (replacing `mldsa_top`), collapsed the split `mldsa_seq_prim`/`mldsa_seq_sec` sequencers into a single `abr_seq`, added ML-KEM, and added new ML-DSA modes (external-µ, stream-msg). Most stages have landed; `v2-plan.md` is the source of truth for what's `[DONE]` vs `[WIP]` / `[BLOCKED]` / `[TODO]`.
 
-Open items at the time of this writing: Stage 7 (`MASKING_EN`) is `[BLOCKED]` upstream; Stage 11 (hierarchy-focused readvcd configs) is `[TODO]`.
+Open items at the time of this writing: Stage 7 (`MASKING_EN`) is `[BLOCKED]` upstream. Stage 11 (hierarchy-focused readvcd configs) is `[DONE]`.
 
 Before making structural changes (touching `rtl/abr_wrap.sv`, `rtl/abr_seq.sv.patch`, `rtl/abr_seq_decode.sv`, `flow/xabr_wrap.vf` generation in the Makefile, or the AHB register map in `src/abr_wrap.cpp`), check the plan to see which stage covers the work and update the stage's status tag when it lands. Do not mark a stage `[DONE]` solely because it compiles — only when its stage-specific validation has passed.
 
@@ -47,14 +47,14 @@ The pipeline has four stages, each producing inputs for the next:
    - ML-DSA: `mldsa-keygen`, `mldsa-sign`, `mldsa-verify`, `mldsa-kgsign`, `mldsa-sign-extmu` (caller-supplied µ), `mldsa-sign-stream` (variable-length byte stream via `MSG_STROBE`). The bare names `keygen` / `sign` / `verify` / `kgsign` are aliases for the `mldsa-*` versions.
    - ML-KEM: `mlkem-keygen`, `mlkem-encaps`, `mlkem-decaps`, `mlkem-kgdecaps`.
    After signing, a successful run satisfies `cmp sig_out.dat sig_in.dat`. Engine-specific status error masks live in the `Operation` table (`STATUS_MLDSA_ERROR=0x8`, `STATUS_MLKEM_ERROR=0x4`).
-3. **`./readvcd <trace.vcd> <time-signal> [threshold] [report-cycles]`** — single-pass C VCD parser. The `<time-signal>` is matched as a substring against signal names; the canonical choice (set in `flow/readvcd.prm`) is `dec.cyc` (the cycle counter inserted by `rtl/abr_seq_decode.sv`). Output is one `# <cycle> [togd] <count>` line per cycle.
+3. **`./readvcd <trace.vcd> <time-signal> [threshold] [filters/report-cycles]`** — single-pass C VCD parser. The `<time-signal>` is matched as a substring against signal names; the canonical choice (set in `flow/readvcd.prm`) is `dec.cyc` (the cycle counter inserted by `rtl/abr_seq_decode.sv`). Output is one `# <cycle> [togd] <count>` line per cycle. Optional hierarchy filters `-i <glob>` / `-e <glob>` restrict which VCD signals contribute to the toggle count; the timing signal is still used even if it is outside the selected hierarchy.
 4. **`flow/tvla.py`** — Welch t-test over toggle counts from many fixed/random runs, using the streaming `fdist` accumulator (no full data array kept in memory).
 
 VCD traces are huge (~25 GB for one signing op). The `flow/gen-*.sh` scripts avoid writing them to disk by piping through a named pipe:
 
 ```
 mkfifo trace.vcd
-./readvcd trace.vcd "$vcdprm" > trace.log &
+( set -f; ./readvcd trace.vcd $vcdprm > trace.log ) &
 ./abr_wrap -t $maxcyc -vcd trace.vcd mldsa-sign | tee run.log
 ```
 
@@ -64,6 +64,18 @@ Trace scripts:
 - ML-KEM: `gen-kem-enc-fix.sh`, `gen-kem-enc-rnd.sh`, `gen-kem-dec-fix.sh`, `gen-kem-dec-rnd.sh`, `gen-kem-kg.sh`.
 
 Each script spawns `n` runs into `_tr_<kind>-<id>-<x>/` subdirs (gitignored); `gen-sum.sh` then concatenates `*.log.gz` from each into a single sorted `.dat`. `flow/tvla.py` consumes those.
+
+Hierarchy-focused `readvcd` presets can be passed anywhere a script asks for `<readvcd.prm>`:
+
+- `flow/readvcd.prm` or `flow/readvcd-full.prm`: full-core baseline.
+- `flow/readvcd-control.prm`: ABR control/register block.
+- `flow/readvcd-sampler.prm`: sampler top, including SHA3.
+- `flow/readvcd-sha3.prm`: SHA3 below sampler.
+- `flow/readvcd-keccak.prm`: Keccak round/storage below SHA3.
+- `flow/readvcd-ntt.prm`: generated NTT instances.
+- `flow/readvcd-mldsa-aux.prm`: ML-DSA auxiliary encode/decode/check blocks.
+- `flow/readvcd-mlkem-codec.prm`: ML-KEM compress/decompress blocks.
+- `flow/readvcd-memory.prm`: wrapper memory/export signals.
 
 The `plot/` directory has a `plot.sh` that turns a tvla output (e.g. `tvla11k.txt`) into the trace/avg/std/tvla gnuplot figures used in `doc/20250530-hardwear-abr.pdf`.
 

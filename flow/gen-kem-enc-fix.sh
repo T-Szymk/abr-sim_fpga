@@ -36,7 +36,7 @@ for x in `seq $4`; do
     echo "fixm=${fixm}"     | tee -a param.txt
     $PYTHON ../flow/mlkem-gen.py encaps $randd $randz $fixm
     mkfifo trace.vcd
-    ../readvcd trace.vcd $vcdprm > trace.log &
+    ( set -f; ../readvcd trace.vcd $vcdprm > trace.log ) &
     ../abr_wrap -t $maxcyc -vcd trace.vcd mlkem-encaps | tee run.log
     gzip *.log
     cd ..

@@ -33,7 +33,7 @@ for x in `seq $4`; do
     echo "randz=${randz}"   | tee -a param.txt
     $PYTHON ../flow/mlkem-gen.py keygen $randd $randz 00
     mkfifo trace.vcd
-    ../readvcd trace.vcd $vcdprm > trace.log &
+    ( set -f; ../readvcd trace.vcd $vcdprm > trace.log ) &
     ../abr_wrap -t $maxcyc -vcd trace.vcd mlkem-keygen | tee run.log
     gzip *.log
     cd ..

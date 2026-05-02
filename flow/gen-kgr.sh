@@ -28,7 +28,7 @@ for x in `seq $4`; do
     echo "randxi=${randxi}" | tee -a param.txt
     $PYTHON ../flow/mldsa-gen.py $tmpdir $randxi
     mkfifo trace.vcd
-    ../readvcd trace.vcd $vcdprm > trace.log &
+    ( set -f; ../readvcd trace.vcd $vcdprm > trace.log ) &
     ../abr_wrap -t $maxcyc -vcd trace.vcd mldsa-kgsign | tee run.log
     gzip *.log
     cd ..
