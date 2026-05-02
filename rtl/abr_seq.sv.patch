@@ -1,0 +1,11 @@
+--- adams-bridge/src/abr_top/rtl/abr_seq.sv	2026-05-01 00:00:00.000000000 +0000
++++ rtl/abr_seq.sv	2026-05-01 00:00:00.000000000 +0000
+@@ -29,6 +29,8 @@
+   output abr_seq_instr_t data_o
+   );
+ 
++    //  MJOS: debug address decoder
++    abr_seq_decode dec(clk, en_i, addr_i);
+ 
+ `ifdef RV_FPGA_OPTIMIZE
+     (*rom_style = "block" *) abr_seq_instr_t data_o_rom;

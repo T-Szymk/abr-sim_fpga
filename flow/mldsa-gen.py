@@ -63,6 +63,13 @@ if __name__ == '__main__':
     with open("sig_in.dat", "wb") as f:
         f.write(sig)
 
+    #   external-mu reference value: mu = H(H(pk) || M', 64)
+    tr  = ml_dsa.h(pk, 64)
+    mu  = ml_dsa.h(tr + mp, 64)
+    print('# mu:', mu.hex())
+    with open("mu_in.dat", "wb") as f:
+        f.write(mu)
+
     #   check verification
 
     print('# verify', ml_dsa.verify_internal(pk, mp, sig))

@@ -3,46 +3,65 @@
 
 #	build directory for verilator
 ABR_SRC		=	adams-bridge
+ABR_ROOT_ABS	=	$(abspath $(ABR_SRC))
 BUILD		=	_build
+MASKING		=	1
+JOBS		?=	$(shell nproc 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)
+CCACHE		?=	1
+CCACHE_DIR	?=	$(abspath $(BUILD)/ccache)
 
 #	separate binaries
 READVCD		=	readvcd
 MLDSA_WRAP	=	mldsa_wrap
+ABR_WRAP	=	abr_wrap
 
 #	
 VERILATOR	=	verilator
+
+ifeq ($(CCACHE),1)
+OBJCACHE	=	ccache
+else
+OBJCACHE	=
+endif
 
 VFLAGS	=	-Wno-WIDTH -Wno-UNOPTFLAT -Wno-LITENDIAN -Wno-CMPCONST \
 			-Wno-MULTIDRIVEN -Wno-UNPACKED \
 			--timescale 1ns/100ps
 VFLAGS	+=	--trace -CFLAGS "-DPRESI_TRACE"
 
-RTLDEP	=	rtl/mldsa_seq_prim.sv rtl/mldsa_seq_sec.sv \
-			$(wildcard $(ABR_SRC)/*/rtl/*.sv)
+RTLDEP	=	rtl/abr_seq.sv rtl/abr_seq_decode.sv rtl/abr_wrap.sv \
+			$(ABR_SRC)/src/abr_top/config/abr_top.vf
 			
-all:	$(READVCD) $(MLDSA_WRAP)
+all:	$(READVCD) $(ABR_WRAP)
 
 #	verilator
 
-$(MLDSA_WRAP):	$(BUILD)/Vmldsa_wrap
-	cp -p $(BUILD)/Vmldsa_wrap $(MLDSA_WRAP)
+$(ABR_WRAP):	$(BUILD)/Vabr_wrap
+	cp -p $(BUILD)/Vabr_wrap $(ABR_WRAP)
 
-$(BUILD)/Vmldsa_wrap: $(BUILD)/Vmldsa_wrap.mk src/mldsa_wrap.cpp
-	$(MAKE) -C $(BUILD) -f Vmldsa_wrap.mk CC=gcc LDFLAGS=""
+$(BUILD)/Vabr_wrap: $(BUILD)/Vabr_wrap.mk src/abr_wrap.cpp
+	CCACHE_DIR=$(CCACHE_DIR) $(MAKE) -j$(JOBS) -C $(BUILD) -f Vabr_wrap.mk \
+		CC=gcc CXX=g++ LINK=g++ OBJCACHE="$(OBJCACHE)" LDFLAGS=""
 
-$(BUILD)/Vmldsa_wrap.mk: $(BUILD) $(RTLDEP) src/mldsa_wrap.cpp
+$(BUILD)/Vabr_wrap.mk: $(BUILD) $(BUILD)/xabr_wrap.vf src/abr_wrap.cpp
 	$(VERILATOR) $(VFLAGS) -Mdir $(BUILD) -cc --exe \
-		--top-module mldsa_wrap -f flow/xabr_wrap.vf src/mldsa_wrap.cpp
+		--top-module abr_wrap -f $(BUILD)/xabr_wrap.vf src/abr_wrap.cpp
+
+$(BUILD)/xabr_wrap.vf: $(BUILD) $(RTLDEP)
+	sed -e 's@$${ADAMSBRIDGE_ROOT}/src/abr_top/rtl/abr_seq.sv@rtl/abr_seq.sv@' \
+		-e 's@$${ADAMSBRIDGE_ROOT}@$(ABR_ROOT_ABS)@' \
+		$(ABR_SRC)/src/abr_top/config/abr_top.vf > $@
+	printf '\nrtl/abr_seq_decode.sv\nrtl/abr_wrap.sv\n' >> $@
 
 #	patch to create progress info
 
-rtl/mldsa_seq_prim.sv:	adams-bridge/src/mldsa_top/rtl/mldsa_seq_prim.sv
+rtl/abr_seq.sv:	adams-bridge/src/abr_top/rtl/abr_seq.sv rtl/abr_seq.sv.patch
 	cp $< $@
 	patch -p0 $@ < $@.patch
-	
-rtl/mldsa_seq_sec.sv:	adams-bridge/src/mldsa_top/rtl/mldsa_seq_sec.sv
-	cp $< $@
-	patch -p0 $@ < $@.patch
+
+lint-abr: $(BUILD) $(BUILD)/xabr_wrap.vf
+	$(VERILATOR) $(VFLAGS) -Mdir $(BUILD) --lint-only \
+		--top-module abr_wrap -f $(BUILD)/xabr_wrap.vf
 	
 #	separate binaries
 
@@ -55,6 +74,6 @@ $(BUILD):
 #       cleanup
 
 clean:
-	$(RM)   -f	$(READVCD) $(MLDSA_WRAP) *.vcd *.dat
+	$(RM)   -f	$(READVCD) $(MLDSA_WRAP) $(ABR_WRAP) *.vcd *.dat *.log
 	$(RM)   -rf $(BUILD) _tr* */__pycache__
 	cd plot && $(MAKE) clean
