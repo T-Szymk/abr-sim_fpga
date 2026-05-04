@@ -45,9 +45,8 @@ Submodule path 'adams-bridge': checked out 'b77e3d8...'
 ```
 
 You're ready to build the main binaries, `readvcd` and `abr_wrap`, using the
-Makefile. `abr_wrap` is the current v2 executable; old v1 notes and examples may
-refer to `mldsa_wrap`, but the generic v2 driver is named `abr_wrap` because it
-drives both ML-DSA and ML-KEM. Verilator build can take a few minutes.
+Makefile. `abr_wrap` drives both ML-DSA and ML-KEM via the v2 `abr_top`.
+Verilator build can take a few minutes.
 ```
 $ make
 gcc -O2 -Wall -Wextra -o readvcd src/readvcd.c
@@ -312,8 +311,8 @@ $ ./flow/gen-kem-dec-rnd.sh 30000 flow/readvcd-mlkem-codec.prm kemdec-codec 1000
 ##  readvcd
 
 **readvcd** is a C program that parses an ASCII VCD stream and counts signal
-toggles per DUT cycle. The timebase is a cycle counter inside the RTL hook; for
-the v2 Adam's Bridge wrapper the canonical substring is `dec.cyc`.
+toggles per DUT cycle. The timebase is a cycle counter inside the RTL hook; the
+canonical substring is `dec.cyc` (set in `flow/readvcd.prm`).
 
 ```
 $ ./readvcd

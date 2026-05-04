@@ -6,13 +6,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Pre-silicon trace generator for the [Adam's Bridge](https://github.com/chipsalliance/adams-bridge) PQC hardware accelerator (FIPS 204 ML-DSA / Dilithium and FIPS 203 ML-KEM / Kyber). It runs a full Verilator RTL simulation of an ML-DSA-87 or ML-KEM-1024 operation and emits VCD toggle traces suitable for TVLA-style side-channel leakage analysis.
 
-## In-progress migration: read `v2-plan.md` first
+## Baseline
 
-The repo is on `adams-bridge` v2.0.3 (commit `b77e3d8`). The v2 migration introduced `abr_top` (replacing `mldsa_top`), collapsed the split `mldsa_seq_prim`/`mldsa_seq_sec` sequencers into a single `abr_seq`, added ML-KEM, and added new ML-DSA modes (external-µ, stream-msg). Most stages have landed; `v2-plan.md` is the source of truth for what's `[DONE]` vs `[WIP]` / `[BLOCKED]` / `[TODO]`.
+The repo is on `adams-bridge` v2.0.3 (commit `b77e3d8`). The v2 migration is complete: `abr_top` replaced `mldsa_top`, the split `mldsa_seq_prim`/`mldsa_seq_sec` sequencers were collapsed into a single `abr_seq`, ML-KEM acquisition was added, and the new ML-DSA modes `mldsa-sign-extmu` and `mldsa-sign-stream` are wired up. `v2-plan.md` was the migration tracker and has been removed; `git show 4cdbb3a^:v2-plan.md` recovers the historical record if needed.
 
-Open items at the time of this writing: Stage 7 (`MASKING_EN`) is `[BLOCKED]` upstream. Stage 11 (hierarchy-focused readvcd configs) is `[DONE]`.
-
-Before making structural changes (touching `rtl/abr_wrap.sv`, `rtl/abr_seq.sv.patch`, `rtl/abr_seq_decode.sv`, `flow/xabr_wrap.vf` generation in the Makefile, or the AHB register map in `src/abr_wrap.cpp`), check the plan to see which stage covers the work and update the stage's status tag when it lands. Do not mark a stage `[DONE]` solely because it compiles — only when its stage-specific validation has passed.
+Known upstream limitation: there is no `MASKING_EN` build switch. In `v2.0.3`'s `abr_top`, masking is encoded in sequencer opcodes and internal control rather than exposed as a top-level parameter, so a masked-vs-unmasked build matrix would require an RTL-level patch rather than a parameter override.
 
 ## Prerequisites
 
