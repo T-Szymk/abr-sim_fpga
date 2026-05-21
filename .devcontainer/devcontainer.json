@@ -1,0 +1,60 @@
+{
+  "name": "crypto_dev",
+
+  "image": "tomszymkowiak/crypto_dev:1.0",
+
+  "mounts":[
+    {"source": "${localWorkspaceFolder}",              "target": "/app/abr-sim_fpga",   "type": "bind"},
+    {"source": "/tmp/.X11-unix",                       "target": "/tmp/.X11-unix", "type": "bind"},
+    // make sure source matches directory containing /bin for questa version on host
+    {"source": "/opt/tools/mentor/questaone_2025.3_1", "target": "/opt/questa",    "type": "bind"},
+    {"source": "${localEnv:SSH_AUTH_SOCK}",            "target": "/ssh-agent",     "type": "bind"}
+  ],
+
+  "workspaceFolder": "/app/abr-sim_fpga",
+
+  "remoteUser": "root",
+
+  // Env variables to be set in container
+  "containerEnv": {
+    "QUESTA_HOME": "/opt/questa",
+    "LM_LICENSE_FILE": "${localEnv:LM_LICENSE_FILE}",
+    "SALT_LICENSE_SERVER": "${localEnv:SALT_LICENSE_SERVER}"
+  },
+
+  "remoteEnv": {
+    "PATH": "/opt/questa/questasim/linux_x86_64:${containerEnv:PATH}"
+  },
+
+  "runArgs": ["--network=host"],
+
+  "customizations": {
+    "vscode": {
+      
+      "extensions": [
+        "hudson-river-trading.vscode-slang",
+        "ms-vscode.cpptools-extension-pack",
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "rashwell.tcl",
+        "anthropic.claude-code",
+        "eamodio.gitlens",
+        "charliermarsh.ruff",
+        "rust-lang.rust-analyzer",
+        "surfer-project.surfer",
+        "hbohlin.vhdl-ls"
+      ],
+
+      "settings": {
+        "docker.cpus": "8",
+        "slang.path": "/tools/slang-server/build/bin/slang-server",
+        "C_Cpp.default.includePath": [
+          "${workspaceRoot}/**/*.h"
+        ],
+        "vhdl_ls.enable": false,
+        "python.analysis.typeCheckingMode": "standard",
+        "python.defaultInterpreterPath": "/root/.pyenv/shims/python"
+      }
+    }
+  }  
+}
