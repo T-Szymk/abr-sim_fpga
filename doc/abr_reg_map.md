@@ -20,6 +20,43 @@
 | `0x4000` | `0x531F` | `MLDSA_PRIVKEY_OUT` | External, 0x1320 bytes |
 | `0x6000` | `0x731F` | `MLDSA_PRIVKEY_IN` | External, 0x1320 bytes |
 
+## CTRL 
+
+​The control register consists of the following flags: 
+
+| Bits     | Identifier  | Access | Reset | Decoded | Name |
+| :------- | :---------- | :----- | :---- | :------ | :--- |
+| \[31:7\] | \-          | \-     | \-    |         | \-   |
+| \[6\]    | STREAM_MSG  | w      | 0x0   |         | \-   |
+| \[5\]    | EXTERNAL_MU | w      | 0x0   |         | \-   |
+| \[4\]    | PCR_SIGN    | w      | 0x0   |         | \-   |
+| \[3\]    | ZEROIZE     | w      | 0x0   |         | \-   |
+| \[2:0\]  | CTRL        | w      | 0x0   |         | \-   |
+
+### ​CTRL 
+
+CTRL command field contains two bits indicating:
+
+* ​Ctrl \= 0b000 
+
+​No Operation. 
+
+* ​Ctrl \= 0b001 
+
+​Trigs the core to start the initialization and perform keygen operation. 
+
+* ​Ctrl \= 0b010 
+
+​Trigs the core to start the signing operation for a message block.  
+
+* ​Ctrl \= 0b011 
+
+​Trigs the core to start verifying a signature for a message block.  
+
+* Ctrl \= 0b100 
+
+​Trigs the core to start the keygen+signing operation for a message block.  This mode decreases storage costs for the secret key (SK) by recalling keygen and using an on-the-fly SK during the signing process.
+
 ### Key Vault (ML-DSA)
 
 | Base Address | Field (`decoded_reg_strb.*`) |
@@ -60,6 +97,40 @@
 | `0xA000` | `0xAC5F` | `MLKEM_DECAPS_KEY` | External, 0xC60 bytes |
 | `0xB000` | `0xB61F` | `MLKEM_ENCAPS_KEY` | External, 0x620 bytes |
 | `0xB800` | `0xBE1F` | `MLKEM_CIPHERTEXT` | External, 0x620 bytes |
+
+## CTRL 
+
+​The control register consists of the following flags: 
+
+| Bits     | Identifier | Access | Reset | Decoded | Name |
+| :------- | :--------- | :----- | :---- | :------ | :--- |
+| \[31:4\] | \-         | \-     | \-    |         | \-   |
+| \[3\]    | ZEROIZE    | w      | 0x0   |         | \-   |
+| \[2:0\]  | CTRL       | w      | 0x0   |         | \-   |
+
+### ​CTRL 
+
+CTRL command field contains two bits indicating:
+
+* ​Ctrl \= 0b000 
+
+​No Operation. 
+
+* ​Ctrl \= 0b001 
+
+​Trigs the core to start the initialization and perform keygen operation. 
+
+* ​Ctrl \= 0b010 
+
+​Trigs the core to start the Encapsulation operation.
+
+* ​Ctrl \= 0b011 
+
+​Trigs the core to start Decapsulation operation.
+
+* Ctrl \= 0b100 
+
+​Trigs the core to start the keygen+Decapsulation operation for a ciphertext block.  This mode decreases storage costs for the decaps_key (dk) by recalling keygen and using an on-the-fly decaps_key during the decapsultion process.
 
 ### Key Vault (ML-KEM)
 
