@@ -1,3 +1,6 @@
 [submodule "adams-bridge"]
 	path = adams-bridge
 	url = https://github.com/chipsalliance/adams-bridge.git
+[submodule "fpga/cw340-luna-board"]
+	path = fpga/cw340-luna-board
+	url = https://github.com/newaetech/cw340-luna-board.git
