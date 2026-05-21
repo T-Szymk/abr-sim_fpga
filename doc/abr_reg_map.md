@@ -57,6 +57,36 @@ CTRL command field contains two bits indicating:
 
 ​Trigs the core to start the keygen+signing operation for a message block.  This mode decreases storage costs for the secret key (SK) by recalling keygen and using an on-the-fly SK during the signing process.
 
+## status 
+
+​The read-only status register consists of the following flags: 
+
+| Bits     | Identifier | Access | Reset | Decoded | Name |
+| :------- | :--------- | :----- | :---- | :------ | :--- |
+| \[31:4\] | \-                | \-     | \-    |         | \-   |
+| \[3\]    | ERROR             | r      | 0x0   |         | \-   |
+| \[2\]    | MSG_STREAM_READY  | r      | 0x0   |         | \-   |
+| \[1\]    | VALID             | r      | 0x0   |         | \-   |
+| \[0\]    | READY             | r      | 0x0   |         | \-   |
+
+### READY 
+
+​Indicates if the core is ready to process the inputs. 
+
+### ​VALID 
+
+​Indicates if the process is computed and the output is valid.
+
+### MSG_STREAM_READY
+
+​Indicates if the core is ready to process the message.
+
+### ​VALID 
+
+​Indicates if the process could not complete due to an error.
+For ML-DSA this status bit indicates an error while decoding the secret key.
+In Caliptra it could also indicate that pcr signing mode was enabled with a command other than Keygen+Signing.
+
 ### Key Vault (ML-DSA)
 
 | Base Address | Field (`decoded_reg_strb.*`) |
@@ -131,6 +161,31 @@ CTRL command field contains two bits indicating:
 * Ctrl \= 0b100 
 
 ​Trigs the core to start the keygen+Decapsulation operation for a ciphertext block.  This mode decreases storage costs for the decaps_key (dk) by recalling keygen and using an on-the-fly decaps_key during the decapsultion process.
+
+## status 
+
+​The read-only status register consists of the following flags: 
+
+| Bits     | Identifier     | Access | Reset | Decoded | Name |
+| :------- | :------------- | :----- | :---- | :------ | :--- |
+| \[31:2\] | \-             | \-     | \-    |         | \-   |
+| \[2\]    | ERROR          | r      | 0x0   |         | \-   |
+| \[1\]    | VALID          | r      | 0x0   |         | \-   |
+| \[0\]    | READY          | r      | 0x0   |         | \-   |
+
+### READY 
+
+​Indicates if the core is ready to process the inputs. 
+
+### ​VALID 
+
+​Indicates if the process is computed and the output is valid. 
+
+### ERROR
+
+​Indicates if the process could not complete due to an error.
+For encapsulation, this indicates that the provided encapsulation key does not pass the FIPS 203 input check (Modulus check).
+For decapsulation, this indicates that the provided decapsulation key does not pass the FIPS 203 input check (Hash check).
 
 ### Key Vault (ML-KEM)
 
