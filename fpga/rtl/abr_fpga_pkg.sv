@@ -25,7 +25,9 @@ package abr_fpga_pkg;
     localparam logic [31:0] ADDR_MLDSA_EXT_MU      = 32'h0118;
     localparam logic [31:0] ADDR_MLDSA_PUBKEY      = 32'h1000;
     localparam logic [31:0] ADDR_MLDSA_SIGNATURE   = 32'h2000;
-    localparam logic [31:0] ADDR_MLDSA_SK_IN       = 32'h6000;
+    localparam logic [31:0] ADDR_MLDSA_SK_OUT       = 32'h4000;
+    localparam logic [31:0] ADDR_MLDSA_SK_IN        = 32'h6000;
+    localparam logic [31:0] ADDR_MLDSA_VERIFY_RES   = 32'h00D8;
 
     // -----------------------------------------------------------------------
     // Field sizes in 32-bit words
@@ -37,6 +39,7 @@ package abr_fpga_pkg;
     localparam int unsigned PUBKEY_WORDS     = 648;   // 2592 B
     localparam int unsigned PRIVKEY_WORDS    = 1224;  // 4896 B
     localparam int unsigned SIGNATURE_WORDS  = 1157;  // ceil(4627 B / 4)
+    localparam int unsigned VERIFY_RES_WORDS = 16;    // 64 B (recomputed c̃)
 
     // -----------------------------------------------------------------------
     // CTRL register command encoding (CTRL[2:0])
@@ -194,5 +197,49 @@ package abr_fpga_pkg;
             default: return '0;
         endcase
     endfunction
+
+    // -----------------------------------------------------------------------
+    // Per-operation read-descriptor tables.
+    //
+    // Same wr_desc_t struct reused for reads — base_addr + num_words.
+    // The FSM reads word[0..num_words-1] from base_addr, base_addr+4, …
+    // and stores them into the per-operation result registers in abr_fpga_top.
+    // -----------------------------------------------------------------------
+
+    // KEYGEN outputs: public key, then private key
+    localparam wr_desc_t KEYGEN_RD_DESC [MAX_DESC] = '{
+        '{ADDR_MLDSA_PUBKEY,      PUBKEY_WORDS    },
+        '{ADDR_MLDSA_SK_OUT,      PRIVKEY_WORDS   },
+        '{32'h0,                  32'h0           },
+        '{32'h0,                  32'h0           }
+    };
+    localparam int unsigned KEYGEN_RD_NUM_DESC = 2;
+
+    // SIGN outputs: signature
+    localparam wr_desc_t SIGN_RD_DESC [MAX_DESC] = '{
+        '{ADDR_MLDSA_SIGNATURE,   SIGNATURE_WORDS },
+        '{32'h0,                  32'h0           },
+        '{32'h0,                  32'h0           },
+        '{32'h0,                  32'h0           }
+    };
+    localparam int unsigned SIGN_RD_NUM_DESC = 1;
+
+    // VERIFY outputs: recomputed c̃ (16 words)
+    localparam wr_desc_t VERIFY_RD_DESC [MAX_DESC] = '{
+        '{ADDR_MLDSA_VERIFY_RES,  VERIFY_RES_WORDS },
+        '{32'h0,                  32'h0            },
+        '{32'h0,                  32'h0            },
+        '{32'h0,                  32'h0            }
+    };
+    localparam int unsigned VERIFY_RD_NUM_DESC = 1;
+
+    // KGSIGN outputs: public key, private key, signature
+    localparam wr_desc_t KGSIGN_RD_DESC [MAX_DESC] = '{
+        '{ADDR_MLDSA_PUBKEY,      PUBKEY_WORDS    },
+        '{ADDR_MLDSA_SK_OUT,      PRIVKEY_WORDS   },
+        '{ADDR_MLDSA_SIGNATURE,   SIGNATURE_WORDS },
+        '{32'h0,                  32'h0           }
+    };
+    localparam int unsigned KGSIGN_RD_NUM_DESC = 3;
 
 endpackage

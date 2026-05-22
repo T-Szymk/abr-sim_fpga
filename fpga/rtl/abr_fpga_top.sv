@@ -74,6 +74,19 @@ module abr_fpga_top
         (OPERATION == OP_VERIFY) ? VERIFY_CTRL  :
                                    KGSIGN_CTRL;
 
+    // Read descriptor table and count for this operation
+    localparam wr_desc_t RD_DESC [MAX_DESC] =
+        (OPERATION == OP_KEYGEN) ? KEYGEN_RD_DESC  :
+        (OPERATION == OP_SIGN)   ? SIGN_RD_DESC    :
+        (OPERATION == OP_VERIFY) ? VERIFY_RD_DESC  :
+                                   KGSIGN_RD_DESC;
+
+    localparam int unsigned NUM_RD_DESC =
+        (OPERATION == OP_KEYGEN) ? KEYGEN_RD_NUM_DESC  :
+        (OPERATION == OP_SIGN)   ? SIGN_RD_NUM_DESC    :
+        (OPERATION == OP_VERIFY) ? VERIFY_RD_NUM_DESC  :
+                                   KGSIGN_RD_NUM_DESC;
+
     // Counter widths
     localparam int unsigned RESET_CNT_W = $clog2(RESET_CYCLES + 1);
     localparam int unsigned DESC_IDX_W  = $clog2(MAX_DESC);
@@ -207,6 +220,8 @@ module abr_fpga_top
         ST_CTRL_WAIT,       // wait for CTRL write to complete
         ST_POLL_DONE_ISSUE, // issue STATUS read to check completion
         ST_POLL_DONE_WAIT,  // wait for STATUS read to complete
+        ST_READ_ISSUE,      // issue one output-register read
+        ST_READ_WAIT,       // wait for read to complete, store result
         ST_DONE,
         ST_ERROR
     } state_e;
@@ -216,6 +231,19 @@ module abr_fpga_top
     logic [DESC_IDX_W-1:0]       desc_idx_q;
     logic [WORD_IDX_W-1:0]       word_idx_q;
     logic [31:0]                 status_lat_q; // latched STATUS word
+
+    // Read-phase counters
+    logic [DESC_IDX_W-1:0]       rd_desc_idx_q;
+    logic [WORD_IDX_W-1:0]       rd_word_idx_q;
+
+    // -----------------------------------------------------------------------
+    // Result registers — written during the read phase; inspect after ST_DONE.
+    // Only the arrays relevant to the compiled OPERATION are driven.
+    // -----------------------------------------------------------------------
+    logic [31:0] result_pk  [0:PUBKEY_WORDS-1];
+    logic [31:0] result_sk  [0:PRIVKEY_WORDS-1];
+    logic [31:0] result_sig [0:SIGNATURE_WORDS-1];
+    logic [31:0] result_vfy [0:VERIFY_RES_WORDS-1];
 
     // -----------------------------------------------------------------------
     // Data-lookup: returns the 32-bit payload for (desc_idx, word_idx).
@@ -254,20 +282,25 @@ module abr_fpga_top
     endfunction
 
     // -----------------------------------------------------------------------
-    // Current-write address for the active (desc_idx, word_idx) position
+    // Current-write / current-read address helpers
     // -----------------------------------------------------------------------
     logic [31:0] cur_wr_addr;
     assign cur_wr_addr = DESC[desc_idx_q].base_addr + {19'h0, word_idx_q, 2'b00};
+
+    logic [31:0] cur_rd_addr;
+    assign cur_rd_addr = RD_DESC[rd_desc_idx_q].base_addr + {19'h0, rd_word_idx_q, 2'b00};
 
     // -----------------------------------------------------------------------
     // FSM sequential
     // -----------------------------------------------------------------------
     always_ff @(posedge clk_i or negedge rst_ni) begin
         if (!rst_ni) begin
-            state_q     <= ST_RESET;
-            reset_cnt_q <= RESET_CNT_W'(RESET_CYCLES);
-            desc_idx_q  <= '0;
-            word_idx_q  <= '0;
+            state_q      <= ST_RESET;
+            reset_cnt_q  <= RESET_CNT_W'(RESET_CYCLES);
+            desc_idx_q   <= '0;
+            word_idx_q   <= '0;
+            rd_desc_idx_q <= '0;
+            rd_word_idx_q <= '0;
             status_lat_q <= '0;
         end else begin
             state_q <= state_d;
@@ -298,6 +331,44 @@ module abr_fpga_top
                 ST_POLL_DONE_WAIT: begin
                     if (mgr_done)
                         status_lat_q <= unpack_rdata(ADDR_MLDSA_STATUS, mgr_rdata);
+                end
+
+                ST_READ_WAIT: begin
+                    if (mgr_done && !mgr_error) begin
+                        // Route read data to the appropriate result array.
+                        // OPERATION is a compile-time constant so only one
+                        // branch survives elaboration.
+                        unique case (OPERATION)
+                            OP_KEYGEN: begin
+                                if (rd_desc_idx_q == 0)
+                                    result_pk[rd_word_idx_q]  <= unpack_rdata(cur_rd_addr, mgr_rdata);
+                                else
+                                    result_sk[rd_word_idx_q]  <= unpack_rdata(cur_rd_addr, mgr_rdata);
+                            end
+                            OP_SIGN: begin
+                                result_sig[rd_word_idx_q] <= unpack_rdata(cur_rd_addr, mgr_rdata);
+                            end
+                            OP_VERIFY: begin
+                                result_vfy[rd_word_idx_q] <= unpack_rdata(cur_rd_addr, mgr_rdata);
+                            end
+                            OP_KGSIGN: begin
+                                if (rd_desc_idx_q == 0)
+                                    result_pk[rd_word_idx_q]  <= unpack_rdata(cur_rd_addr, mgr_rdata);
+                                else if (rd_desc_idx_q == 1)
+                                    result_sk[rd_word_idx_q]  <= unpack_rdata(cur_rd_addr, mgr_rdata);
+                                else
+                                    result_sig[rd_word_idx_q] <= unpack_rdata(cur_rd_addr, mgr_rdata);
+                            end
+                        endcase
+
+                        // Advance read counters
+                        if (rd_word_idx_q == WORD_IDX_W'(RD_DESC[rd_desc_idx_q].num_words - 1)) begin
+                            rd_word_idx_q <= '0;
+                            rd_desc_idx_q <= rd_desc_idx_q + 1'b1;
+                        end else begin
+                            rd_word_idx_q <= rd_word_idx_q + 1'b1;
+                        end
+                    end
                 end
 
                 default: ;
@@ -418,10 +489,34 @@ module abr_fpga_top
                 if (mgr_done) begin
                     if (mgr_error || (status_lat_q & STATUS_ERROR))
                         state_d = ST_ERROR;
-                    else if ((status_lat_q & (STATUS_READY | STATUS_VALID)) == 32'd2) // ToDo: Found out why this isn't the same as the spec
-                        state_d = ST_DONE;
+                    else if ((status_lat_q & (STATUS_READY | STATUS_VALID)) == 32'd2) // ToDo: Find out why this isn't the same as the spec
+                        state_d = ST_READ_ISSUE;
                     else
                         state_d = ST_POLL_DONE_ISSUE;
+                end
+            end
+
+            // -----------------------------------------------------------------
+            // Read back output registers word-by-word into result_* arrays
+            // -----------------------------------------------------------------
+            ST_READ_ISSUE: begin
+                // All output descriptors read — operation fully complete
+                if (rd_desc_idx_q == DESC_IDX_W'(NUM_RD_DESC)) begin
+                    state_d = ST_DONE;
+                end else if (mgr_ready) begin
+                    mgr_req   = 1'b1;
+                    mgr_write = 1'b0;
+                    mgr_addr  = cur_rd_addr;
+                    state_d   = ST_READ_WAIT;
+                end
+            end
+
+            ST_READ_WAIT: begin
+                if (mgr_done) begin
+                    if (mgr_error)
+                        state_d = ST_ERROR;
+                    else
+                        state_d = ST_READ_ISSUE;
                 end
             end
 
