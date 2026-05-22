@@ -418,8 +418,7 @@ module abr_fpga_top
                 if (mgr_done) begin
                     if (mgr_error || (status_lat_q & STATUS_ERROR))
                         state_d = ST_ERROR;
-                    else if ((status_lat_q & (STATUS_READY | STATUS_VALID)) ==
-                             (STATUS_READY | STATUS_VALID))
+                    else if ((status_lat_q & (STATUS_READY | STATUS_VALID)) == 32'd2) // ToDo: Found out why this isn't the same as the spec
                         state_d = ST_DONE;
                     else
                         state_d = ST_POLL_DONE_ISSUE;

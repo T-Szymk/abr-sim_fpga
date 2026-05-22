@@ -134,7 +134,7 @@ package abr_fpga_pkg;
     localparam logic [31:0] DATA_ENTROPY   [ENTROPY_WORDS]   = '{default: '0};
     localparam logic [31:0] DATA_SEED      [SEED_WORDS]      = '{default: '0};
     localparam logic [31:0] DATA_SIGN_RND  [SIGN_RND_WORDS]  = '{default: '0};
-    localparam logic [31:0] DATA_MSG       [MSG_WORDS]        = '{default: '0};
+    localparam logic [31:0] DATA_MSG       [MSG_WORDS]       = '{default: '0};
     localparam logic [31:0] DATA_PUBKEY    [PUBKEY_WORDS]    = '{default: '0};
     localparam logic [31:0] DATA_PRIVKEY   [PRIVKEY_WORDS]   = '{default: '0};
     localparam logic [31:0] DATA_SIGNATURE [SIGNATURE_WORDS] = '{default: '0};

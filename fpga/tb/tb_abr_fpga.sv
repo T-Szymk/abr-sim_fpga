@@ -5,9 +5,9 @@ module tb_abr_fpga;
     
     import abr_fpga_pkg::*;
 
-    parameter time TB_CLOCK_PERIOD   = 10ns; // 100 MHz clock
-    parameter time TB_RESET_DURATION = 20ns; // Reset active for first 20 ns
-    parameter time TB_TIMEOUT        = 1ms;  // Timeout for test completion
+    parameter realtime TB_CLOCK_PERIOD   =  2.5ns; // 100 MHz clock
+    parameter realtime TB_RESET_DURATION = 20.0ns; // Reset active for first 20 ns
+    parameter realtime TB_TIMEOUT        =  1.0ms;  // Timeout for test completion
 
     parameter op_e             OPERATION    = OP_KEYGEN;
     parameter integer unsigned RESET_CYCLES = 16;
@@ -26,7 +26,7 @@ module tb_abr_fpga;
         clk_i = 0;
         forever begin
           #(TB_CLOCK_PERIOD/2) clk_i = ~clk_i; // 100 MHz clock
-          if ($time > TB_TIMEOUT) begin
+          if ($realtime > TB_TIMEOUT) begin
             $display("ERROR: Test timed out after %0t", $time);
             $finish;
           end
@@ -58,5 +58,16 @@ module tb_abr_fpga;
         .error_intr_o ( error_intr_o ),
         .notif_intr_o ( notif_intr_o )
     );
+
+    // Monitor for completion
+    initial begin
+        forever begin
+            @(negedge clk_i);
+            if(done_o) begin
+                $display("TB: Done signal received after %0t", $realtime);
+                $finish;
+            end
+        end
+    end
 
 endmodule : tb_abr_fpga

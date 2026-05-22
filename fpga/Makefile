@@ -7,6 +7,7 @@ CURR_DIR     := $(PWD)
 BUILD_DIR     = $(CURR_DIR)/.sim_build
 LOG_DIR       = $(BUILD_DIR)/logs
 SIM_DIR       = $(CURR_DIR)/sim
+SCRIPT_DIR    = $(CURR_DIR)/scripts
 FPGA_SRC_DIR  = $(CURR_DIR)/rtl
 FPGA_TB_DIR   = $(CURR_DIR)/tb
 
@@ -323,7 +324,7 @@ sim_clean:
 .PHONY: fpga_build
 fpga_build:
 	@echo "Building Vivado project..."
-	@vivado -mode batch -source create_project.tcl -notrace
+	@vivado -mode batch -source $(SCRIPT_DIR)/create_project.tcl -notrace
 
 .PHONY: fpga_clean
 fpga_clean:
