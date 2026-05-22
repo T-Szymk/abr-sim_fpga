@@ -79,3 +79,4 @@ dkms.conf
 **/*.wlf
 **/*.vcd
 **/*.log
+**/*.sim_build
