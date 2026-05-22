@@ -1,19 +1,21 @@
 DATE         := `date +'%y%m%d_%T.%3N'`
 
+export CURR_DIR         := $(PWD)
 export ADAMSBRIDGE_ROOT ?= $(abspath $(CURR_DIR)/../adams-bridge)
 export JOBS             ?= 8
 
-CURR_DIR     := $(PWD)
 BUILD_DIR     = $(CURR_DIR)/.sim_build
 LOG_DIR       = $(BUILD_DIR)/logs
 SIM_DIR       = $(CURR_DIR)/sim
-SCRIPT_DIR    = $(CURR_DIR)/scripts
 FPGA_SRC_DIR  = $(CURR_DIR)/rtl
 FPGA_TB_DIR   = $(CURR_DIR)/tb
 
-FPGA_SV_FILES    = $(FPGA_SRC_DIR)/abr_fpga_pkg.sv  \
-                   $(FPGA_SRC_DIR)/abr_mem_fpga.sv  \
-                   $(FPGA_SRC_DIR)/abr_ahb_mgr.sv   \
+FPGA_SV_FILES    = $(FPGA_SRC_DIR)/abr_fpga_pkg.sv      \
+                   $(FPGA_SRC_DIR)/abr_mem_fpga.sv      \
+                   $(FPGA_SRC_DIR)/abr_ahb_mgr.sv       \
+									 $(FPGA_SRC_DIR)/abr_mem_if_pack.sv   \
+									 $(FPGA_SRC_DIR)/abr_mem_if_unpack.sv \
+									 $(FPGA_SRC_DIR)/abr_top_wrapper.sv   \
                    $(FPGA_SRC_DIR)/abr_fpga_top.sv
 
 ABR_SV_FILES     = ${ADAMSBRIDGE_ROOT}/src/abr_top/rtl/abr_config_defines.svh                 \
@@ -352,7 +354,26 @@ vclean:
 
 # FPGA build recipes
 
-.PHONY: fpga_build fpga_clean
+FPGA_BUILD_DIR = $(CURR_DIR)/.fpga_build
+FPGA_LOG_DIR   = $(FPGA_BUILD_DIR)/logs
+
+export OOC_PROJECT_NAME = abr_fpga_ooc
+export OOC_PROJECT_DIR  = $(FPGA_BUILD_DIR)/$(OOC_PROJECT_NAME)
+export SCRIPT_DIR       = $(CURR_DIR)/scripts
+
+.PHONY: fpga_init fpga_ooc_build fpga_ooc_clean fpga_build fpga_clean
+
+
+fpga_init:
+	@mkdir -p $(FPGA_BUILD_DIR)
+	@mkdir -p $(FPGA_LOG_DIR)
+
+
+fpga_ooc_build: fpga_init fpga_ooc_clean
+	@echo "Building Vivado OOC project..."
+	@cd $(FPGA_BUILD_DIR) && \
+	vivado -mode batch -source $(SCRIPT_DIR)/abr_top_ooc.tcl -notrace -log \
+	  $(FPGA_LOG_DIR)/vivado_ooc_$(DATE).log
 
 
 fpga_build:
@@ -360,11 +381,14 @@ fpga_build:
 	@vivado -mode batch -source $(SCRIPT_DIR)/create_project.tcl -notrace
 
 
+fpga_ooc_clean:
+	@echo "Cleaning Vivado OOC project..."
+	@rm -rf $(OOC_PROJECT_DIR)
+
+
 fpga_clean:
-	@echo "Cleaning Vivado project..."
-	@rm -rf abr_fpga_synth
-	@rm -rf .Xil
-	@rm -f ./vivado* ./*.log ./*.jou
+	@echo "Cleaning FPGA projects..."
+	@rm -rf $(FPGA_BUILD_DIR)
 
 ################################################################################
 
@@ -372,3 +396,4 @@ fpga_clean:
 .PHONY: clean_all
 clean_all:
 	@rm -rf $(BUILD_DIR)
+	@rm -rf $(FPGA_BUILD_DIR)

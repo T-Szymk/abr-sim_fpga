@@ -7,7 +7,7 @@
 # Description: TCL script containing FPGA board configuration values
 # ------------------------------------------------------------------------------
 
-source ./common.tcl
+source ${SCRIPT_DIR}/common.tcl
 
 log_script_entry;
 

@@ -1,5 +1,5 @@
 # ------------------------------------------------------------------------------
-# VCU118.tcl
+# creaet_project.tcl
 #
 # Author(s): Tom Szymkowiak <thomas.szymkowiak@tuni.fi>
 # Date     : 04-may-2026

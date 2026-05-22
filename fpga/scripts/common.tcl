@@ -26,3 +26,10 @@ proc log_script_exit {} {
   puts "---------------------------------------------------------\n"
 }
 
+if {[info exists ::env(CURR_DIR)]} {
+    set CURR_DIR $::env(CURR_DIR)
+} else {
+    puts "CURR_DIR environment variable not set. Please set it to the /fpga directory."
+    exit
+}
+
