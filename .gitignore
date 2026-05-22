@@ -76,3 +76,6 @@ dkms.conf
 
 # Simulation artefacts
 **/transcript
+**/*.wlf
+**/*.vcd
+**/*.log
