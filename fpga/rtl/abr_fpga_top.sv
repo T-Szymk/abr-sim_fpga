@@ -26,7 +26,7 @@
 module abr_fpga_top
     import abr_fpga_pkg::*;
 #(
-    parameter op_e OPERATION   = OP_KEYGEN,
+    parameter op_e OPERATION    = OP_KEYGEN,
     parameter int  RESET_CYCLES = 16        // cycles abr_top rst_b is held low
 )
 (
@@ -239,11 +239,15 @@ module abr_fpga_top
     // -----------------------------------------------------------------------
     // Result registers — written during the read phase; inspect after ST_DONE.
     // Only the arrays relevant to the compiled OPERATION are driven.
+    // Not synthesised to on-device storage to avoid huge resource requirements.
     // -----------------------------------------------------------------------
+
+`ifndef SYNTHESIS
     logic [31:0] result_pk  [0:PUBKEY_WORDS-1];
     logic [31:0] result_sk  [0:PRIVKEY_WORDS-1];
     logic [31:0] result_sig [0:SIGNATURE_WORDS-1];
     logic [31:0] result_vfy [0:VERIFY_RES_WORDS-1];
+`endif
 
     // -----------------------------------------------------------------------
     // Data-lookup: returns the 32-bit payload for (desc_idx, word_idx).
@@ -334,6 +338,8 @@ module abr_fpga_top
                 end
 
                 ST_READ_WAIT: begin
+// Do not synthesise capture logic as storage requirements on the device would be HUGE
+`ifndef SYNTHESIS
                     if (mgr_done && !mgr_error) begin
                         // Route read data to the appropriate result array.
                         // OPERATION is a compile-time constant so only one
@@ -360,6 +366,7 @@ module abr_fpga_top
                                     result_sig[rd_word_idx_q] <= unpack_rdata(cur_rd_addr, mgr_rdata);
                             end
                         endcase
+`endif
 
                         // Advance read counters
                         if (rd_word_idx_q == WORD_IDX_W'(RD_DESC[rd_desc_idx_q].num_words - 1)) begin

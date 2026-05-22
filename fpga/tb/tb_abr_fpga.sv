@@ -5,7 +5,7 @@ module tb_abr_fpga;
     
     import abr_fpga_pkg::*;
 
-    parameter realtime TB_CLOCK_PERIOD   =  2.5ns; // 100 MHz clock
+    parameter realtime TB_CLOCK_PERIOD   =  1.0ns; // 1000 MHz clock
     parameter realtime TB_RESET_DURATION = 20.0ns; // Reset active for first 20 ns
     parameter realtime TB_TIMEOUT        =  1.0ms;  // Timeout for test completion
 
@@ -69,5 +69,13 @@ module tb_abr_fpga;
             end
         end
     end
+
+`ifdef VERILATOR
+    initial begin
+        $dumpfile("vtrace.vcd");
+        $dumpvars();
+    end
+`endif 
+
 
 endmodule : tb_abr_fpga

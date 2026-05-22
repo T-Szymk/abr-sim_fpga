@@ -11,21 +11,9 @@ SCRIPT_DIR    = $(CURR_DIR)/scripts
 FPGA_SRC_DIR  = $(CURR_DIR)/rtl
 FPGA_TB_DIR   = $(CURR_DIR)/tb
 
-MODELSIM_INI_PATH = -ini $(BUILD_DIR)/modelsim.ini
-
-ABR_SRC_LIB       = abr_src_lib
-ABR_SRC_LIB_PATH  = $(BUILD_DIR)/$(ABR_SRC_LIB)
-FPGA_SRC_LIB      = fpga_src_lib
-FPGA_SRC_LIB_PATH = $(BUILD_DIR)/$(FPGA_SRC_LIB)
-FPGA_TB_LIB       = fpga_tb_lib
-FPGA_TB_LIB_PATH  = $(BUILD_DIR)/$(FPGA_TB_LIB)
-
-FPGA_SV_FILES    = ${ADAMSBRIDGE_ROOT}/src/abr_top/rtl/abr_params_pkg.sv          \
-                   ${ADAMSBRIDGE_ROOT}/src/abr_sampler_top/rtl/abr_sampler_pkg.sv \
-                   ${ADAMSBRIDGE_ROOT}/src/abr_top/rtl/abr_ctrl_pkg.sv            \
-									 $(FPGA_SRC_DIR)/abr_fpga_pkg.sv                                \
-                   $(FPGA_SRC_DIR)/abr_mem_fpga.sv                                \
-									 $(FPGA_SRC_DIR)/abr_ahb_mgr.sv                                 \
+FPGA_SV_FILES    = $(FPGA_SRC_DIR)/abr_fpga_pkg.sv  \
+                   $(FPGA_SRC_DIR)/abr_mem_fpga.sv  \
+                   $(FPGA_SRC_DIR)/abr_ahb_mgr.sv   \
                    $(FPGA_SRC_DIR)/abr_fpga_top.sv
 
 ABR_SV_FILES     = ${ADAMSBRIDGE_ROOT}/src/abr_top/rtl/abr_config_defines.svh                 \
@@ -203,8 +191,46 @@ ABR_SV_FILES     = ${ADAMSBRIDGE_ROOT}/src/abr_top/rtl/abr_config_defines.svh   
                    ${ADAMSBRIDGE_ROOT}/src/abr_top/rtl/abr_top.sv                             \
                    ${ADAMSBRIDGE_ROOT}/src/abr_top/rtl/abr_reg.sv
 
-FPGA_TB_SV_FILES = $(FPGA_SRC_DIR)/abr_fpga_pkg.sv \
-                   $(FPGA_TB_DIR)/tb_abr_fpga.sv
+FPGA_TB_SV_FILES = $(FPGA_TB_DIR)/tb_abr_fpga.sv
+
+INC_DIRS         := +incdir+${ADAMSBRIDGE_ROOT}/src/abr_top/rtl           \
+                    +incdir+${ADAMSBRIDGE_ROOT}/src/abr_libs/rtl          \
+                    +incdir+${ADAMSBRIDGE_ROOT}/src/abr_sampler_top/rtl   \
+                    +incdir+${ADAMSBRIDGE_ROOT}/src/rej_bounded/rtl       \
+                    +incdir+${ADAMSBRIDGE_ROOT}/src/rej_sampler/rtl       \
+                    +incdir+${ADAMSBRIDGE_ROOT}/src/exp_mask/rtl          \
+                    +incdir+${ADAMSBRIDGE_ROOT}/src/sample_in_ball/rtl    \
+                    +incdir+${ADAMSBRIDGE_ROOT}/src/cbd_sampler/rtl       \
+                    +incdir+${ADAMSBRIDGE_ROOT}/src/abr_sha3/rtl          \
+                    +incdir+${ADAMSBRIDGE_ROOT}/src/abr_prim/rtl          \
+                    +incdir+${ADAMSBRIDGE_ROOT}/src/abr_prim_generic/rtl  \
+                    +incdir+${ADAMSBRIDGE_ROOT}/src/ntt_top/rtl           \
+                    +incdir+${ADAMSBRIDGE_ROOT}/src/barrett_reduction/rtl \
+                    +incdir+${ADAMSBRIDGE_ROOT}/src/decompose/rtl         \
+                    +incdir+${ADAMSBRIDGE_ROOT}/src/sk_decode/rtl         \
+                    +incdir+${ADAMSBRIDGE_ROOT}/src/sk_encode/rtl         \
+                    +incdir+${ADAMSBRIDGE_ROOT}/src/makehint/rtl          \
+                    +incdir+${ADAMSBRIDGE_ROOT}/src/norm_check/rtl        \
+                    +incdir+${ADAMSBRIDGE_ROOT}/src/sig_encode_z/rtl      \
+                    +incdir+${ADAMSBRIDGE_ROOT}/src/sigdecode_h/rtl       \
+                    +incdir+${ADAMSBRIDGE_ROOT}/src/sig_decode_z/rtl      \
+                    +incdir+${ADAMSBRIDGE_ROOT}/src/pk_decode/rtl         \
+                    +incdir+${ADAMSBRIDGE_ROOT}/src/power2round/rtl       \
+                    +incdir+${ADAMSBRIDGE_ROOT}/src/compress/rtl          \
+                    +incdir+${ADAMSBRIDGE_ROOT}/src/decompress/rtl
+
+TOP_MODULE    ?= tb_abr_fpga
+
+################################################################################
+
+# FPGA Questa sim recipes
+
+Q_BUILD_DIR    = $(BUILD_DIR)/questa_build
+
+MODELSIM_INI_PATH = -ini $(Q_BUILD_DIR)/modelsim.ini
+
+Q_FPGA_TB_LIB       = questa_fpga_tb_lib
+Q_FPGA_TB_LIB_PATH  = $(Q_BUILD_DIR)/$(Q_FPGA_TB_LIB)
 
 VLOG_OPTS     ?=
 VLOG_OPTS     += -sv
@@ -212,32 +238,9 @@ VLOG_OPTS     += -mfcu
 VLOG_OPTS     += $(MODELSIM_INI_PATH)
 VLOG_OPTS     += -quiet
 VLOG_OPTS     += -logfile $(LOG_DIR)/vlog_$(DATE).log
-VLOG_OPTS     += +incdir+${ADAMSBRIDGE_ROOT}/src/abr_top/rtl           \
-                 +incdir+${ADAMSBRIDGE_ROOT}/src/abr_libs/rtl          \
-                 +incdir+${ADAMSBRIDGE_ROOT}/src/abr_sampler_top/rtl   \
-                 +incdir+${ADAMSBRIDGE_ROOT}/src/rej_bounded/rtl       \
-                 +incdir+${ADAMSBRIDGE_ROOT}/src/rej_sampler/rtl       \
-                 +incdir+${ADAMSBRIDGE_ROOT}/src/exp_mask/rtl          \
-                 +incdir+${ADAMSBRIDGE_ROOT}/src/sample_in_ball/rtl    \
-                 +incdir+${ADAMSBRIDGE_ROOT}/src/cbd_sampler/rtl       \
-                 +incdir+${ADAMSBRIDGE_ROOT}/src/abr_sha3/rtl          \
-                 +incdir+${ADAMSBRIDGE_ROOT}/src/abr_prim/rtl          \
-                 +incdir+${ADAMSBRIDGE_ROOT}/src/abr_prim_generic/rtl  \
-                 +incdir+${ADAMSBRIDGE_ROOT}/src/ntt_top/rtl           \
-                 +incdir+${ADAMSBRIDGE_ROOT}/src/barrett_reduction/rtl \
-                 +incdir+${ADAMSBRIDGE_ROOT}/src/decompose/rtl         \
-                 +incdir+${ADAMSBRIDGE_ROOT}/src/sk_decode/rtl         \
-                 +incdir+${ADAMSBRIDGE_ROOT}/src/sk_encode/rtl         \
-                 +incdir+${ADAMSBRIDGE_ROOT}/src/makehint/rtl          \
-                 +incdir+${ADAMSBRIDGE_ROOT}/src/norm_check/rtl        \
-                 +incdir+${ADAMSBRIDGE_ROOT}/src/sig_encode_z/rtl      \
-                 +incdir+${ADAMSBRIDGE_ROOT}/src/sigdecode_h/rtl       \
-                 +incdir+${ADAMSBRIDGE_ROOT}/src/sig_decode_z/rtl      \
-                 +incdir+${ADAMSBRIDGE_ROOT}/src/pk_decode/rtl         \
-                 +incdir+${ADAMSBRIDGE_ROOT}/src/power2round/rtl       \
-                 +incdir+${ADAMSBRIDGE_ROOT}/src/compress/rtl          \
-                 +incdir+${ADAMSBRIDGE_ROOT}/src/decompress/rtl
+VLOG_OPTS     += $(INC_DIRS)
 VLOG_OPTS     += +define+TECH_SPECIFIC_ICG
+VLOG_OPTS     += +define+SIMULATION
 
 
 VLOG_SUPPRESS ?= -suppress vlog-13314
@@ -259,76 +262,113 @@ VSIM_SUPPRESS ?= -suppress vsim-3009
 
 DO_FILE       ?= sim.do
 
-TOP_MODULE    ?= tb_abr_fpga
 
-################################################################################
+.PHONY: sim_init sim_lib sim_compile sim_opt sim_gui sim sim_clean
 
-# FPGA sim recipes
 
-.PHONY: sim_init
 sim_init: sim_clean
-	@mkdir -p $(BUILD_DIR)
+	@mkdir -p $(Q_BUILD_DIR)
 	@mkdir -p $(LOG_DIR)
 
 
-.PHONY: sim_lib
 sim_lib: sim_init
-	@cd $(BUILD_DIR)                           && \
-	 vlib $(FPGA_TB_LIB_PATH)                  && \
-	 vlib $(FPGA_SRC_LIB_PATH)                 && \
-	 vlib $(ABR_SRC_LIB_PATH)                  && \
-	 vmap $(FPGA_TB_LIB) $(FPGA_TB_LIB_PATH)   && \
-	 vmap $(FPGA_SRC_LIB) $(FPGA_SRC_LIB_PATH) && \
-	 vmap $(ABR_SRC_LIB) $(ABR_SRC_LIB_PATH)
+	@cd $(Q_BUILD_DIR)                            && \
+	 vlib $(Q_FPGA_TB_LIB_PATH)                  && \
+	 vmap $(Q_FPGA_TB_LIB) $(Q_FPGA_TB_LIB_PATH)
 
-.PHONY: sim_compile
-sim_compile: sim_lib	
-	@vlog $(VLOG_OPTS) -work $(ABR_SRC_LIB)  $(VLOG_SUPPRESS) $(ABR_SV_FILES)
-	@vlog $(VLOG_OPTS) -work $(FPGA_SRC_LIB) $(VLOG_SUPPRESS) $(FPGA_SV_FILES)
-	@vlog $(VLOG_OPTS) -work $(FPGA_TB_LIB)  $(VLOG_SUPPRESS) $(FPGA_TB_SV_FILES)
 
-.PHONY: sim_opt
+sim_compile: sim_lib
+	@vlog $(VLOG_OPTS) -work $(Q_FPGA_TB_LIB)  $(VLOG_SUPPRESS) $(ABR_SV_FILES) $(FPGA_SV_FILES) $(FPGA_TB_SV_FILES)
+
+
 sim_opt: sim_compile
-	@vopt $(VOPT_OPTS) -work $(FPGA_TB_LIB) \
-	-L $(FPGA_SRC_LIB) -L $(FPGA_TB_LIB) -L $(ABR_SRC_LIB) \
+	@vopt $(VOPT_OPTS) -work $(Q_FPGA_TB_LIB) \
 	$(VOPT_SUPPRESS) \
 	$(TOP_MODULE) -o $(TOP_MODULE)_opt
 
-.PHONY: sim_gui
+
 sim_gui: sim_opt
-	@vsim $(VSIM_OPTS) -work $(FPGA_TB_LIB) \
-	-L $(FPGA_SRC_LIB) -L $(FPGA_TB_LIB) -L $(ABR_SRC_LIB) \
+	@vsim $(VSIM_OPTS) -work $(Q_FPGA_TB_LIB) \
 	$(VSIM_SUPPRESS) \
 	-onfinish stop \
 	-do $(SIM_DIR)/$(DO_FILE) \
 	$(TOP_MODULE)_opt
 
-.PHONY: sim
+
 sim: sim_opt
-	@vsim $(VSIM_OPTS) -work $(FPGA_TB_LIB) \
-	-L $(FPGA_SRC_LIB) -L $(FPGA_TB_LIB) -L $(ABR_SRC_LIB) \
+	@vsim $(VSIM_OPTS) -work $(Q_FPGA_TB_LIB) \
 	$(VSIM_SUPPRESS) \
 	-c \
-	-wlf $(BUILD_DIR)/$(TOP_MODULE)_$(DATE).wlf \
+	-wlf $(Q_BUILD_DIR)/$(TOP_MODULE)_$(DATE).wlf \
 	$(TOP_MODULE)_opt \
 	-do "log -r /*; log -r /tb_abr_fpga/dut/result_pk; log -r /tb_abr_fpga/dut/result_sk; log -r /tb_abr_fpga/dut/result_sig; log -r /tb_abr_fpga/dut/result_vfy; run -all"
 
-.PHONY: sim_clean
+
 sim_clean:
-	@rm -rf $(BUILD_DIR)
+	@rm -rf $(Q_BUILD_DIR)
+
+################################################################################
+
+# FPGA Verilator sim recipes
+
+V_SRCS      = $(ABR_SV_FILES) $(FPGA_SV_FILES) $(FPGA_TB_SV_FILES)
+V_INCLUDES  = $(INC_DIRS)
+V_DEFINES   = -DTECH_SPECIFIC_ICG -DVERILATOR -DSIMULATION
+V_BUILD_DIR = $(BUILD_DIR)/verilator_build
+
+# Verilator flags
+VFLAGS := \
+	--binary \
+	--timing \
+	--trace-vcd \
+	--top-module $(TOP_MODULE) \
+	-Wall \
+	-Wno-fatal \
+	$(V_INCLUDES)
+
+.PHONY: vinit vbuild vrun vclean
+
+VLOG_FILE     = $(LOG_DIR)/verilator_$(DATE).log
+
+vinit: vclean
+	@mkdir -p $(V_BUILD_DIR)
+	@mkdir -p $(LOG_DIR)
+
+
+vbuild : vinit $(V_BUILD_DIR)/V$(TOP_MODULE)
+	@echo "Built Verilator model..."
+	@cp -p $(V_BUILD_DIR)/V$(TOP_MODULE) $(BUILD_DIR)/V$(TOP_MODULE)
+
+
+$(V_BUILD_DIR)/V$(TOP_MODULE): $(V_SRCS)
+	@verilator $(VFLAGS) $(V_SRCS) --Mdir $(V_BUILD_DIR) --prefix V$(TOP_MODULE) \
+		2>&1 | tee $(VLOG_FILE)
+
+vclean:
+	@rm -rf $(V_BUILD_DIR)
+	@rm -f $(BUILD_DIR)/V$(TOP_MODULE)
 
 ################################################################################
 
 # FPGA build recipes
 
-.PHONY: fpga_build
+.PHONY: fpga_build fpga_clean
+
+
 fpga_build:
 	@echo "Building Vivado project..."
 	@vivado -mode batch -source $(SCRIPT_DIR)/create_project.tcl -notrace
 
-.PHONY: fpga_clean
+
 fpga_clean:
 	@echo "Cleaning Vivado project..."
 	@rm -rf abr_fpga_synth
 	@rm -rf .Xil
 	@rm -f ./vivado* ./*.log ./*.jou
+
+################################################################################
+
+# Global
+.PHONY: clean_all
+clean_all:
+	@rm -rf $(BUILD_DIR)
