@@ -2,7 +2,7 @@
 // Drives a single subordinate with a simple req/ready handshake.
 // Back-to-back transfers are supported: assert req_i while ready_o is high.
 
-module ahb_mgr #(
+module abr_ahb_mgr #(
     parameter int unsigned AHB_ADDR_WIDTH = 32,
     parameter int unsigned AHB_DATA_WIDTH = 32
 ) (
@@ -121,4 +121,5 @@ module ahb_mgr #(
         end
     end
 
-endmodule
+endmodule : abr_ahb_mgr
+
