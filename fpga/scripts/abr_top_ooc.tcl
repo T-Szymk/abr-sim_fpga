@@ -307,6 +307,6 @@ open_run synth_1 -name synth_1
 
 # write out netlist
 set EDF_DIR "${OOC_PROJECT_DIR}/ooc_netlist"
-mkdir -p ${EDF_DIR}
+file mkdir ${EDF_DIR}
 write_edif ${EDF_DIR}/${TOP_MODULE}.edf
 puts "INFO: ${TOP_MODULE}.edf written to ${EDF_DIR}"
