@@ -357,10 +357,15 @@ vclean:
 FPGA_BUILD_DIR = $(CURR_DIR)/.fpga_build
 FPGA_LOG_DIR   = $(FPGA_BUILD_DIR)/logs
 
-IP_LIST = top_clk
+export IP_LIST = ip_top_clk
 
 export OOC_PROJECT_NAME = abr_fpga_ooc
 export OOC_PROJECT_DIR  = $(FPGA_BUILD_DIR)/$(OOC_PROJECT_NAME)
+export OOC_TOP_MODULE   = abr_top_wrapper
+export PROJECT_NAME     = abr_fpga
+export PROJECT_DIR      = $(FPGA_BUILD_DIR)/$(PROJECT_NAME)
+export TOP_MODULE       = abr_fpga_cw340_top
+export EDIF_DIR         = $(OOC_PROJECT_DIR)/ooc_netlist
 export SCRIPT_DIR       = $(CURR_DIR)/scripts
 export IP_DIR           = $(FPGA_BUILD_DIR)/ip
 
@@ -395,15 +400,21 @@ fpga_ooc_build: fpga_init fpga_ooc_clean
 	  $(FPGA_LOG_DIR)/vivado_ooc_$(DATE).log
 
 
-fpga_build:
-	@echo "Building Vivado project..."
-	@vivado -mode batch -source $(SCRIPT_DIR)/create_project.tcl -notrace
-
-
 fpga_ooc_clean:
 	@echo "Cleaning Vivado OOC project..."
 	@rm -rf $(OOC_PROJECT_DIR)
 
+
+fpga_main_build:
+	@echo "Building Main Vivado project..."
+	@cd $(FPGA_BUILD_DIR) && \
+	vivado -mode batch -source $(SCRIPT_DIR)/abr_fpga_build.tcl -notrace -log \
+	  $(FPGA_LOG_DIR)/vivado_main_$(DATE).log
+
+
+fpga_main_clean:
+	@echo "Cleaning Vivado Main project..."
+	@rm -rf $(PROJECT_DIR)
 
 fpga_clean:
 	@echo "Cleaning FPGA projects..."

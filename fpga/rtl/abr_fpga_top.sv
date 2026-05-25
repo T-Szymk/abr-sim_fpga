@@ -515,9 +515,11 @@ module abr_fpga_top
                 end
 
                 ST_READ_WAIT: begin
+
+                    if (mgr_done && !mgr_error) begin
+                        
 // Do not synthesise capture logic as storage requirements on the device would be HUGE
 `ifndef SYNTHESIS
-                    if (mgr_done && !mgr_error) begin
                         // Route read data to the appropriate result array.
                         // OPERATION is a compile-time constant so only one
                         // branch survives elaboration.

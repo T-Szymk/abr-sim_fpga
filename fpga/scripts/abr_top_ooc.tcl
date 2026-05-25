@@ -23,10 +23,31 @@ if { [ info exists ::env(JOBS) ] } {
 }
 puts "JOBS  : ${JOBS}";
 
+if { [ info exists ::env(OOC_PROJECT_NAME) ] } {
+  set OOC_PROJECT_NAME $::env(OOC_PROJECT_NAME);
+} else { 
+  puts "OOC_PROJECT_NAME environment variable not set. Please set it to the project name."
+  exit
+}
+
 if { [ info exists ::env(OOC_PROJECT_DIR) ] } {
   set OOC_PROJECT_DIR $::env(OOC_PROJECT_DIR);
 } else { 
-  puts "OOC_PROJECT_DIR environment variable not set. Please set it to the project name."
+  puts "OOC_PROJECT_DIR environment variable not set. Please set it to the project directory."
+  exit
+}
+
+if { [ info exists ::env(OOC_TOP_MODULE) ] } {
+  set OOC_TOP_MODULE $::env(OOC_TOP_MODULE);
+} else { 
+  puts "OOC_TOP_MODULE environment variable not set. Please set it to the top module name of the OOC project."
+  exit
+}
+
+if { [ info exists ::env(EDIF_DIR) ] } {
+  set EDIF_DIR $::env(EDIF_DIR);
+} else { 
+  puts "EDIF_DIR environment variable not set. Please set it to the EDIF directory."
   exit
 }
 
@@ -36,15 +57,14 @@ source ${SCRIPT_DIR}/cw340.tcl
 set ADAMSBRIDGE_ROOT [file normalize "${CURR_DIR}/../adams-bridge"]
 set FPGA_SRC_DIR     [file normalize "${CURR_DIR}/rtl"]
 set CONSTR "${SCRIPT_DIR}/constr_ooc.xdc"
-set TOP_MODULE "abr_top_wrapper"
 
 log_script_entry;
 
-create_project abr_fpga_synth ${OOC_PROJECT_DIR} -part ${XLNX_PRT_ID};
+create_project ${OOC_PROJECT_NAME} ${OOC_PROJECT_DIR} -part ${XLNX_PRT_ID};
 
 # set top design
-set_property top ${TOP_MODULE} [current_fileset]
-puts "TOP_MODULE  : ${TOP_MODULE}";
+set_property top ${OOC_TOP_MODULE} [current_fileset]
+puts "TOP_MODULE  : ${OOC_TOP_MODULE}";
 
 #########################################################
 # ADD SOURCES
@@ -229,7 +249,7 @@ set ABR_SV_FILES " \
 
 add_files -norecurse -scan_for_includes ${ABR_SV_FILES};
 
-set FPGA_SV_FILES " \
+set FPGA_FILES " \
   ${FPGA_SRC_DIR}/abr_fpga_pkg.sv      \
   ${FPGA_SRC_DIR}/abr_mem_fpga.sv      \
   ${FPGA_SRC_DIR}/abr_ahb_mgr.sv       \
@@ -238,7 +258,7 @@ set FPGA_SV_FILES " \
   ${FPGA_SRC_DIR}/abr_top_wrapper.sv   \
 "
 
-add_files -norecurse -scan_for_includes ${FPGA_SV_FILES};
+add_files -norecurse -scan_for_includes ${FPGA_FILES};
 
 #########################################################
 # SET INCLUDES
@@ -306,7 +326,6 @@ wait_on_run synth_1
 open_run synth_1 -name synth_1
 
 # write out netlist
-set EDF_DIR "${OOC_PROJECT_DIR}/ooc_netlist"
-file mkdir ${EDF_DIR}
-write_edif ${EDF_DIR}/${TOP_MODULE}.edf
-puts "INFO: ${TOP_MODULE}.edf written to ${EDF_DIR}"
+file mkdir ${EDIF_DIR}
+write_edif ${EDIF_DIR}/${OOC_TOP_MODULE}.edf
+puts "INFO: ${OOC_TOP_MODULE}.edf written to ${EDIF_DIR}"

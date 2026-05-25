@@ -4,20 +4,19 @@
 module abr_fpga_cw340_top 
   import abr_fpga_pkg::*;
 (
-    input  wire PLL0,
-    input  wire USRSW0,  // active-low reset
-    output wire OT_IOR6, // user LED 0
-    output wire OT_IOR7  // user LED 1
+    input  wire PLL_CLK_1,   // 62.5MHz clk
+    input  wire USRSW0,      // active-low reset
+    output wire [1:0] USRLED // user LEDs
 );
 
   timeunit 1ns/1ps;
 
-  `ifndef OPERATION
-    `define OPERATION OP_KEYGEN
+  `ifndef ABR_OP
+    `define ABR_OP OP_KGSIGN
   `endif
 
   localparam integer unsigned ResetSyncStages = 3;
-  localparam op_e             Operation       = `OPERATION;
+  localparam op_e             Operation       = `ABR_OP;
   localparam integer unsigned ResetCycles     = 16; 
 
   // Internal signal for reset
@@ -26,20 +25,25 @@ module abr_fpga_cw340_top
   wire rst_n;
   wire clk_100MHz;
 
-  logic done_d, done_q;
-  logic error_d, error_q;
-  logic busy_d, busy_q;
-  logic error_intr_d, error_intr_q;
-  logic notif_intr_d, notif_intr_q;
+  (* DONT_TOUCH = "yes" *) logic done_d, done_q;
+  (* DONT_TOUCH = "yes" *) logic error_d, error_q;
+  (* DONT_TOUCH = "yes" *) logic busy_d, busy_q;
+  (* DONT_TOUCH = "yes" *) logic error_intr_d, error_intr_q;
+  (* DONT_TOUCH = "yes" *) logic notif_intr_d, notif_intr_q;
+
+  // Debug counter for LED toggling
+  logic [25:0] debug_counter;
 
   logic [ResetSyncStages-1:0] resetn_sync_ff;
 
   // Generate active-high reset signal
   assign reset_ext = ~USRSW0;
+  assign USRLED[0] = reset_int; // Drive LED with PLL lock for debugging
+  assign USRLED[1] = debug_counter[25]; // Toggle LED at ~1Hz
   assign rst_n     = resetn_sync_ff[ResetSyncStages-1];
 
   ip_top_clk top_clk (
-    .clk_in1  ( PLL0       ), // input  external clock in
+    .clk_in1  ( PLL_CLK_1       ), // input  external clock in
     .clk_out  ( clk_100MHz ), // output clk_out
     .reset    ( reset_ext  ), // input  reset
     .clk_lock ( reset_int  )  // output clk_lock    
@@ -54,28 +58,11 @@ module abr_fpga_cw340_top
     end
   end
 
-  // register status signals from abr_top
-  always_ff @(posedge clk_100MHz or negedge rst_n) begin
-    if (!rst_n) begin
-      done_q        <= 1'b0;
-      error_q       <= 1'b0;
-      busy_q        <= 1'b0;
-      error_intr_q  <= 1'b0;
-      notif_intr_q  <= 1'b0;
-    end else begin
-      done_q        <= done_d;
-      error_q       <= error_d;
-      busy_q        <= busy_d;
-      error_intr_q  <= error_intr_d;
-      notif_intr_q  <= notif_intr_d;
-    end
-  end
-
   // instantiate the design
-  abr_fpga_top i_abr_fpga_top #(  
+  abr_fpga_top #(  
     .OPERATION    ( Operation   ),
     .RESET_CYCLES ( ResetCycles )
-  ) (
+  ) i_abr_fpga_top (
     .clk_i        ( clk_100MHz ),
     .rst_ni       ( rst_n      ),      // active-low board/PLL reset
 
@@ -94,6 +81,32 @@ module abr_fpga_cw340_top
     .error_intr_o ( error_intr_d ),
     .notif_intr_o ( notif_intr_d )
   );
+
+  // register status signals from abr_top
+  always_ff @(posedge clk_100MHz or negedge rst_n) begin
+    if (!rst_n) begin
+      done_q        <= 1'b0;
+      error_q       <= 1'b0;
+      busy_q        <= 1'b0;
+      error_intr_q  <= 1'b0;
+      notif_intr_q  <= 1'b0;
+    end else begin
+      done_q        <= done_d;
+      error_q       <= error_d;
+      busy_q        <= busy_d;
+      error_intr_q  <= error_intr_d;
+      notif_intr_q  <= notif_intr_d;
+    end
+  end
+
+  // create a 1Hz pulse for debugging (ToDo: Remove this)  
+  always_ff @(posedge clk_100MHz or negedge rst_n) begin
+    if (!rst_n) begin
+      debug_counter <= 0;
+    end else begin
+      debug_counter <= debug_counter + 1;
+    end
+  end
 
 
 endmodule
