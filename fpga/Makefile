@@ -357,17 +357,36 @@ vclean:
 FPGA_BUILD_DIR = $(CURR_DIR)/.fpga_build
 FPGA_LOG_DIR   = $(FPGA_BUILD_DIR)/logs
 
+IP_LIST = top_clk
+
 export OOC_PROJECT_NAME = abr_fpga_ooc
 export OOC_PROJECT_DIR  = $(FPGA_BUILD_DIR)/$(OOC_PROJECT_NAME)
 export SCRIPT_DIR       = $(CURR_DIR)/scripts
+export IP_DIR           = $(FPGA_BUILD_DIR)/ip
 
-.PHONY: fpga_init fpga_ooc_build fpga_ooc_clean fpga_build fpga_clean
+.PHONY: fpga_init fpga_build_ip fpga_clean_ip fpga_ooc_build fpga_ooc_clean fpga_build fpga_clean
 
 
 fpga_init:
 	@mkdir -p $(FPGA_BUILD_DIR)
 	@mkdir -p $(FPGA_LOG_DIR)
+	@mkdir -p $(IP_DIR)
 
+
+fpga_build_ip: fpga_init $(IP_LIST)
+	@echo "Finished generating Vivado IPs..."
+
+
+$(IP_LIST):
+	@echo "Building IP: $@"
+	@cd $(IP_DIR) && \
+	vivado -mode batch -source $(SCRIPT_DIR)/ip_$@.tcl -notrace -log \
+    $(FPGA_LOG_DIR)/vivado_ip_$@_$(DATE).log
+# ToDo: Copy IP netlist into rtl/ip_netlist dir
+
+fpga_clean_ip:
+	@echo "Cleaning Vivado IPs..."
+	@rm -rf $(IP_DIR)
 
 fpga_ooc_build: fpga_init fpga_ooc_clean
 	@echo "Building Vivado OOC project..."
