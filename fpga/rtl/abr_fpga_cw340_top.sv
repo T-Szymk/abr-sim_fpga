@@ -6,7 +6,7 @@ module abr_fpga_cw340_top
 (
     input  wire PLL_CLK_1,   // 62.5MHz clk
     input  wire USRSW0,      // active-low reset
-    output wire [1:0] USRLED // user LEDs
+    output wire [4:0] USRLED // user LEDs
 );
 
   timeunit 1ns/1ps;
@@ -38,12 +38,15 @@ module abr_fpga_cw340_top
 
   // Generate active-high reset signal
   assign reset_ext = ~USRSW0;
-  assign USRLED[0] = reset_int; // Drive LED with PLL lock for debugging
+  assign USRLED[0] = reset_int;         // Drive LED with PLL lock for debugging
   assign USRLED[1] = debug_counter[25]; // Toggle LED at ~1Hz
+  assign USRLED[2] = done_q;            // Drive LED with done status for debugging
+  assign USRLED[3] = error_q;           // Drive LED with error status for debugging
+  assign USRLED[4] = busy_q;            // Drive LED with busy status for debugging
   assign rst_n     = resetn_sync_ff[ResetSyncStages-1];
 
   ip_top_clk top_clk (
-    .clk_in1  ( PLL_CLK_1       ), // input  external clock in
+    .clk_in1  ( PLL_CLK_1  ), // input  external clock in
     .clk_out  ( clk_100MHz ), // output clk_out
     .reset    ( reset_ext  ), // input  reset
     .clk_lock ( reset_int  )  // output clk_lock    
@@ -91,9 +94,19 @@ module abr_fpga_cw340_top
       error_intr_q  <= 1'b0;
       notif_intr_q  <= 1'b0;
     end else begin
-      done_q        <= done_d;
-      error_q       <= error_d;
-      busy_q        <= busy_d;
+      // latch status signal
+      if (done_d) begin
+        done_q <= 1'b1;
+      end
+      
+      if (error_d) begin
+        error_q <= 1'b1;
+      end
+      
+      if (busy_d) begin
+        busy_q <= 1'b1;
+      end
+
       error_intr_q  <= error_intr_d;
       notif_intr_q  <= notif_intr_d;
     end

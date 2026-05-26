@@ -9,7 +9,7 @@ module tb_abr_fpga;
     parameter realtime TB_RESET_DURATION = 20.0ns; // Reset active for first 20 ns
     parameter realtime TB_TIMEOUT        =  1.0ms;  // Timeout for test completion
 
-    parameter op_e             OPERATION    = OP_KEYGEN;
+    parameter op_e             OPERATION    = OP_KGSIGN;
     parameter integer unsigned RESET_CYCLES = 16;
 
     // Clock and reset

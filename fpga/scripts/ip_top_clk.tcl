@@ -30,14 +30,16 @@ if [info exists ::env(JOBS)] {
 # detect IP name
 if [info exists ::env(TOP_CLK_ID)] {
     set TOP_CLK_ID $::env(TOP_CLK_ID)
+    puts "NOTE: TOP_CLK_ID set to ${TOP_CLK_ID}"
 } else {
     set TOP_CLK_ID "ip_top_clk"
-    puts "WARNING: TOP_CLK_ID variable not found. Value set to $TOP_CLK_ID"
+    puts "WARNING: TOP_CLK_ID variable not found. Value set to ${TOP_CLK_ID}"
 }
 
 # detect input clock period definition
 if [info exists ::env(INPUT_OSC_FREQ_MHZ)] {
     set INPUT_OSC_FREQ_MHZ $::env(INPUT_OSC_FREQ_MHZ)
+    puts "NOTE: INPUT_OSC_FREQ_MHZ set to ${INPUT_OSC_FREQ_MHZ} MHz"
 } else {
     set INPUT_OSC_FREQ_MHZ 62.500
     puts "WARNING: INPUT_OSC_FREQ_MHZ variable not found. Value set to ${INPUT_OSC_FREQ_MHZ} MHz"
@@ -51,9 +53,10 @@ puts "NOTE: INPUT_OSC_PERIOD_NS set to $INPUT_OSC_PERIOD_NS ns"
 # detect top clock period definition
 if [info exists ::env(TOP_CLK_FREQ_MHZ)] {
     set TOP_CLK_FREQ_MHZ $::env(TOP_CLK_FREQ_MHZ)
+    puts "NOTE: TOP_CLK_FREQ_MHZ set to ${TOP_CLK_FREQ_MHZ} MHz"
 } else {
-    set TOP_CLK_FREQ_MHZ 100.000
-    puts "WARNING: TOP_CLK_FREQ_MHZ variable not found. Value set to $TOP_CLK_FREQ_MHZ MHz"
+    set TOP_CLK_FREQ_MHZ 50.000
+    puts "WARNING: TOP_CLK_FREQ_MHZ variable not found. Value set to ${TOP_CLK_FREQ_MHZ} MHz"
 }
 
 # Critical definition checks

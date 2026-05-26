@@ -23,6 +23,9 @@ set_property -dict { PACKAGE_PIN  E23  IOSTANDARD   LVCMOS18 PULLTYPE PULLUP } [
 
 set_property -dict { PACKAGE_PIN AH32  IOSTANDARD   LVCMOS18 } [get_ports { USRLED[0] }]; # OT_IOR6
 set_property -dict { PACKAGE_PIN AJ33  IOSTANDARD   LVCMOS18 } [get_ports { USRLED[1] }]; # OT_IOR7
+set_property -dict { PACKAGE_PIN AH34  IOSTANDARD   LVCMOS18 } [get_ports { USRLED[2] }]; # OT_IOR8
+set_property -dict { PACKAGE_PIN AH31  IOSTANDARD   LVCMOS18 } [get_ports { USRLED[3] }]; # OT_IOR9
+set_property -dict { PACKAGE_PIN AH27  IOSTANDARD   LVCMOS18 } [get_ports { USRLED[4] }]; # OT_IOR10
 
 ################################################
 # _______  _____  __  __  _____  _   _   _____ #
@@ -38,4 +41,4 @@ set_property -dict { PACKAGE_PIN AJ33  IOSTANDARD   LVCMOS18 } [get_ports { USRL
 
 
 set_false_path -from [get_ports USRSW0]; # USR_DBG_nRST is not a real reset, but a switch. It can be used to reset the system, but it is not guaranteed to be glitch-free. Therefore, we need to tell the tools that it is not a real reset signal.
-set_false_path -to [get_ports USRLED]; # USRLEDs are not real outputs, but just indicators. They can be used to indicate the state of the system, but they are not guaranteed to be glitch-free. Therefore, we need to tell the tools that they are not real output signals.
+set_false_path -to   [get_ports USRLED[*]]; # USRLEDs are not real outputs, but just indicators. They can be used to indicate the state of the system, but they are not guaranteed to be glitch-free. Therefore, we need to tell the tools that they are not real output signals.

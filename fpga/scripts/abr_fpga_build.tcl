@@ -86,8 +86,13 @@ source ${SCRIPT_DIR}/cw340.tcl
 
 log_script_entry;
 
-# first generate OOC design
-#source ${SCRIPT_DIR}/abr_top_ooc.tcl
+# Generate OOC design if netlist doesn't exist
+if { ![file exists ${EDIF_DIR}/${OOC_TOP_MODULE}.edf] } {
+    puts "OOC netlist not found. Generating OOC design and netlist..."
+    source ${SCRIPT_DIR}/abr_top_ooc.tcl
+} else {
+    puts "OOC netlist found at ${EDIF_DIR}/${OOC_TOP_MODULE}.edf. Skipping OOC generation..."
+}
 
 set ADAMSBRIDGE_ROOT [file normalize "${CURR_DIR}/../adams-bridge"]
 set FPGA_SRC_DIR     [file normalize "${CURR_DIR}/rtl"]
@@ -233,5 +238,32 @@ wait_on_run synth_1
 open_run synth_1 -name netlist_1
 set_property needs_refresh false [get_runs synth_1];
 
+#########################################################
+# IMPLEMENTATION
+#########################################################
+
+# set for RuntimeOptimized implementation
+set_property "steps.opt_design.args.directive" "RuntimeOptimized" [get_runs impl_1]
+set_property "steps.place_design.args.directive" "RuntimeOptimized" [get_runs impl_1]
+set_property "steps.route_design.args.directive" "RuntimeOptimized" [get_runs impl_1]
+set_property "steps.phys_opt_design.args.is_enabled" true [get_runs impl_1]
+#set_property "steps.phys_opt_design.args.directive" "ExploreWithHoldFix" [get_runs impl_1]
+#set_property "steps.post_route_phys_opt_design.args.is_enabled" true [get_runs impl_1]
+#set_property "steps.post_route_phys_opt_design.args.directive" "ExploreWithAggressiveHoldFix" [get_runs impl_1]
+#set_param route.enableHoldExpnBailout 0
+
+set_property STEPS.WRITE_BITSTREAM.ARGS.BIN_FILE true [get_runs impl_1]
+
+launch_runs impl_1 -jobs ${JOBS} -verbose; # CAN BE MODIFIED DEPENDING ON BUILD HOST 
+wait_on_run impl_1
+
+#########################################################
+# BITSTREAM GENERATION
+#########################################################
+
+launch_runs impl_1 -jobs ${JOBS} -to_step write_bitstream
+wait_on_run impl_1
+
+open_run impl_1
 
 log_script_exit;

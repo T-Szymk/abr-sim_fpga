@@ -221,7 +221,7 @@ INC_DIRS         := +incdir+${ADAMSBRIDGE_ROOT}/src/abr_top/rtl           \
                     +incdir+${ADAMSBRIDGE_ROOT}/src/compress/rtl          \
                     +incdir+${ADAMSBRIDGE_ROOT}/src/decompress/rtl
 
-TOP_MODULE    ?= tb_abr_fpga
+SIM_TOP_MODULE    ?= tb_abr_fpga
 
 ################################################################################
 
@@ -286,7 +286,7 @@ sim_compile: sim_lib
 sim_opt: sim_compile
 	@vopt $(VOPT_OPTS) -work $(Q_FPGA_TB_LIB) \
 	$(VOPT_SUPPRESS) \
-	$(TOP_MODULE) -o $(TOP_MODULE)_opt
+	$(SIM_TOP_MODULE) -o $(SIM_TOP_MODULE)_opt
 
 
 sim_gui: sim_opt
@@ -294,15 +294,15 @@ sim_gui: sim_opt
 	$(VSIM_SUPPRESS) \
 	-onfinish stop \
 	-do $(SIM_DIR)/$(DO_FILE) \
-	$(TOP_MODULE)_opt
+	$(SIM_TOP_MODULE)_opt
 
 
 sim: sim_opt
 	@vsim $(VSIM_OPTS) -work $(Q_FPGA_TB_LIB) \
 	$(VSIM_SUPPRESS) \
 	-c \
-	-wlf $(Q_BUILD_DIR)/$(TOP_MODULE)_$(DATE).wlf \
-	$(TOP_MODULE)_opt \
+	-wlf $(Q_BUILD_DIR)/$(SIM_TOP_MODULE)_$(DATE).wlf \
+	$(SIM_TOP_MODULE)_opt \
 	-do "log -r /*; log -r /tb_abr_fpga/dut/result_pk; log -r /tb_abr_fpga/dut/result_sk; log -r /tb_abr_fpga/dut/result_sig; log -r /tb_abr_fpga/dut/result_vfy; run -all"
 
 
@@ -323,7 +323,7 @@ VFLAGS := \
 	--binary \
 	--timing \
 	--trace-vcd \
-	--top-module $(TOP_MODULE) \
+	--top-module $(SIM_TOP_MODULE) \
 	-Wall \
 	-Wno-fatal \
 	$(V_INCLUDES)
@@ -337,18 +337,18 @@ vinit: vclean
 	@mkdir -p $(LOG_DIR)
 
 
-vbuild : vinit $(V_BUILD_DIR)/V$(TOP_MODULE)
+vbuild : vinit $(V_BUILD_DIR)/V$(SIM_TOP_MODULE)
 	@echo "Built Verilator model..."
-	@cp -p $(V_BUILD_DIR)/V$(TOP_MODULE) $(BUILD_DIR)/V$(TOP_MODULE)
+	@cp -p $(V_BUILD_DIR)/V$(SIM_TOP_MODULE) $(BUILD_DIR)/V$(SIM_TOP_MODULE)
 
 
-$(V_BUILD_DIR)/V$(TOP_MODULE): $(V_SRCS)
-	@verilator $(VFLAGS) $(V_SRCS) --Mdir $(V_BUILD_DIR) --prefix V$(TOP_MODULE) \
+$(V_BUILD_DIR)/V$(SIM_TOP_MODULE): $(V_SRCS)
+	@verilator $(VFLAGS) $(V_SRCS) --Mdir $(V_BUILD_DIR) --prefix V$(SIM_TOP_MODULE) \
 		2>&1 | tee $(VLOG_FILE)
 
 vclean:
 	@rm -rf $(V_BUILD_DIR)
-	@rm -f $(BUILD_DIR)/V$(TOP_MODULE)
+	@rm -f $(BUILD_DIR)/V$(SIM_TOP_MODULE)
 
 ################################################################################
 
@@ -367,7 +367,11 @@ export PROJECT_DIR      = $(FPGA_BUILD_DIR)/$(PROJECT_NAME)
 export TOP_MODULE       = abr_fpga_cw340_top
 export EDIF_DIR         = $(OOC_PROJECT_DIR)/ooc_netlist
 export SCRIPT_DIR       = $(CURR_DIR)/scripts
+
 export IP_DIR           = $(FPGA_BUILD_DIR)/ip
+# top clock IP params
+export INPUT_OSC_FREQ_MHZ = 62.500
+export TOP_CLK_FREQ_MHZ   = 50.000
 
 .PHONY: fpga_init fpga_build_ip fpga_clean_ip fpga_ooc_build fpga_ooc_clean fpga_build fpga_clean
 
@@ -385,8 +389,8 @@ fpga_build_ip: fpga_init $(IP_LIST)
 $(IP_LIST):
 	@echo "Building IP: $@"
 	@cd $(IP_DIR) && \
-	vivado -mode batch -source $(SCRIPT_DIR)/ip_$@.tcl -notrace -log \
-    $(FPGA_LOG_DIR)/vivado_ip_$@_$(DATE).log
+	vivado -mode batch -source $(SCRIPT_DIR)/$@.tcl -notrace -log \
+    $(FPGA_LOG_DIR)/vivado_$@_$(DATE).log
 # ToDo: Copy IP netlist into rtl/ip_netlist dir
 
 fpga_clean_ip:
