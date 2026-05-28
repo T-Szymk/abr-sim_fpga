@@ -42,6 +42,8 @@ module abr_fpga_top
     output wire INTT_trigger,
 `endif
 
+    input  logic ext_trigger_i, // e.g. external trigger to start the operation; usage depends on the platform
+
     output logic done_o,      // pulses high for one cycle when operation completes
     output logic error_o,     // asserted and held on STATUS error
 
@@ -185,8 +187,8 @@ module abr_fpga_top
     // abr_mem_fpga instantiation
     // -----------------------------------------------------------------------
     abr_mem_fpga mem_inst (
-        .clk_i            (clk_i),
-        .abr_memory_export (abr_memory_export)
+        .clk_i             ( clk_i             ),
+        .abr_memory_export ( abr_memory_export )
     );
 
     // -----------------------------------------------------------------------
@@ -389,6 +391,7 @@ module abr_fpga_top
     // -----------------------------------------------------------------------
     typedef enum logic [3:0] {
         ST_RESET,           // drive abr_rst_b low
+        ST_WAIT_FOR_START,  // wait for start condition (e.g. ext trigger)
         ST_POLL_RDY_ISSUE,  // issue STATUS read to check READY
         ST_POLL_RDY_WAIT,   // wait for STATUS read to complete
         ST_WRITE_ISSUE,     // issue one input-register write
@@ -489,8 +492,12 @@ module abr_fpga_top
             unique case (state_q)
 
                 ST_RESET: begin
-                    if (reset_cnt_q != '0)
+                    if (reset_cnt_q != '0) begin
                         reset_cnt_q <= reset_cnt_q - 1'b1;
+                    end else begin
+                        // reset counter
+                        reset_cnt_q <= RESET_CNT_W'(RESET_CYCLES);
+                    end
                 end
 
                 ST_POLL_RDY_WAIT: begin
@@ -583,7 +590,17 @@ module abr_fpga_top
             ST_RESET: begin
                 abr_rst_b = 1'b0;
                 if (reset_cnt_q == '0)
+                    state_d = ST_WAIT_FOR_START;
+            end
+
+            // -----------------------------------------------------------------
+            // Wait for external ready condition (e.g. ext trigger) before 
+            // starting the operation.
+            // -----------------------------------------------------------------
+            ST_WAIT_FOR_START: begin
+                if (ext_trigger_i) begin
                     state_d = ST_POLL_RDY_ISSUE;
+                end
             end
 
             // -----------------------------------------------------------------
@@ -707,10 +724,14 @@ module abr_fpga_top
             end
 
             // -----------------------------------------------------------------
+            // Operation complete, assert done_o. Remain in this state until 
+            // reset or a new external trigger arrives.
+            // -----------------------------------------------------------------
             ST_DONE: begin
-                done_o = 1'b1;
-                // Hold in DONE; external logic can observe done_o for one cycle
-                // or permanently via a registered flag.
+                done_o    = 1'b1;
+                if (busy_o == 1'b0) begin
+                    state_d = ST_RESET;
+                end
             end
 
             ST_ERROR: begin

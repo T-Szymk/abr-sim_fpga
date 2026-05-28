@@ -103,9 +103,7 @@ module abr_fpga_cw340_top
         error_q <= 1'b1;
       end
       
-      if (busy_d) begin
-        busy_q <= 1'b1;
-      end
+      busy_q        <= busy_d;
 
       error_intr_q  <= error_intr_d;
       notif_intr_q  <= notif_intr_d;

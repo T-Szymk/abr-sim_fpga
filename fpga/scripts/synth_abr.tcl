@@ -7,8 +7,10 @@
 # Description: TCL script to create ABR FPGA synthesis project in Vivado
 # ------------------------------------------------------------------------------
 
+set CURR_DIR [pwd]
+
 source ./common.tcl
-source ./cw340.tcl
+source ./cw310.tcl
 
 if { [ info exists ::env(JOBS) ] } {
   set JOBS $::env(JOBS);

@@ -81,3 +81,4 @@ dkms.conf
 **/*.log
 **/*.sim_build
 **/*.fpga_build
+**/.Xil

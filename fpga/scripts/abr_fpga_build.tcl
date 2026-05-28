@@ -10,6 +10,13 @@
 #              the fpga directory.
 # ------------------------------------------------------------------------------
 
+if {[info exists ::env(CURR_DIR)]} {
+    set CURR_DIR $::env(CURR_DIR)
+} else {
+    puts "CURR_DIR environment variable not set. Please set it to the /fpga directory."
+    exit
+}
+
 if {[info exists ::env(SCRIPT_DIR)]} {
     set SCRIPT_DIR $::env(SCRIPT_DIR)
 } else {
@@ -81,8 +88,15 @@ if { [ info exists ::env(IP_DIR) ] } {
   exit
 }
 
+if { [ info exists ::env(BOARD) ] } {
+  set BOARD $::env(BOARD);
+} else { 
+  puts "BOARD environment variable not set. Please set it to the board name."
+  exit
+}
+
 source ${SCRIPT_DIR}/common.tcl
-source ${SCRIPT_DIR}/cw340.tcl
+source ${SCRIPT_DIR}/${BOARD}.tcl
 
 log_script_entry;
 
@@ -96,7 +110,7 @@ if { ![file exists ${EDIF_DIR}/${OOC_TOP_MODULE}.edf] } {
 
 set ADAMSBRIDGE_ROOT [file normalize "${CURR_DIR}/../adams-bridge"]
 set FPGA_SRC_DIR     [file normalize "${CURR_DIR}/rtl"]
-set CONSTR "${SCRIPT_DIR}/constr.xdc"
+set CONSTR "${SCRIPT_DIR}/constr_${BOARD}.xdc"
 
 create_project ${PROJECT_NAME} ${PROJECT_DIR} -part ${XLNX_PRT_ID};
 
@@ -147,7 +161,7 @@ set FPGA_FILES " \
   ${FPGA_SRC_DIR}/abr_mem_if_pack.sv          \
   ${FPGA_SRC_DIR}/abr_top_wrapper_black_box.v \
   ${FPGA_SRC_DIR}/abr_fpga_top.sv             \
-  ${FPGA_SRC_DIR}/abr_fpga_cw340_top.sv       \
+  ${FPGA_SRC_DIR}/abr_fpga_${BOARD}_top.sv    \
 "
 
 add_files -norecurse -scan_for_includes ${FPGA_FILES};
@@ -187,6 +201,40 @@ set ABR_INCLUDES  " \
 set_property include_dirs ${ABR_INCLUDES} [current_fileset]
 
 #########################################################
+# CW-specific files and includes
+#########################################################
+
+if { ${BOARD} == "cw310" } {
+
+    set CW_FPGA_SRC_DIR [file normalize "${CURR_DIR}/cw310-bergen-board/fpga/aes/hdl"]
+
+    set CW_FPGA_V_FILES " \
+      ${CW_FPGA_SRC_DIR}/cdc_pulse.v        \
+      ${CW_FPGA_SRC_DIR}/clocks.v           \
+      ${CW_FPGA_SRC_DIR}/cw310_reg_aes.v    \
+      ${CW_FPGA_SRC_DIR}/cw310_top.v        \
+      ${CW_FPGA_SRC_DIR}/cw310_usb_reg_fe.v \
+    "
+
+    set CW_INCLUDES " \
+      ${CW_FPGA_SRC_DIR} \
+    "
+
+} elseif { ${BOARD} == "cw340" } {
+
+    set CW_FPGA_SRC_DIR [file normalize "${CURR_DIR}/cw340-luna-board/fpga/hdl"]
+
+    # ToDo: Add CW340-specific sources here
+
+} else {
+    puts "Unsupported BOARD: ${BOARD}. Please set BOARD to either 'cw310' or 'ac701'."
+    exit
+}
+
+add_files -norecurse -scan_for_includes ${CW_FPGA_V_FILES};
+set_property include_dirs ${CW_INCLUDES} [current_fileset]
+
+#########################################################
 # READ PRE-BUILT OOC NETLIST
 #########################################################
 
@@ -216,8 +264,7 @@ add_files -fileset constrs_1 -norecurse ${CONSTR};
 
 # Add Xilinx IPs
 foreach {IP_NAME} ${IP_LIST} {
-    # fpga/.fpga_build/ip/ip_top_clk.srcs/sources_1/ip/ip_top_clk/ip_top_clk.xci
-    import_ip ${IP_DIR}/${IP_NAME}.srcs/sources_1/ip/${IP_NAME}/${IP_NAME}.xci
+  import_ip ${IP_DIR}/${BOARD}/${IP_NAME}/${IP_NAME}.srcs/sources_1/ip/${IP_NAME}/${IP_NAME}.xci
 }
 
 #########################################################

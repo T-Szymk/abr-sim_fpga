@@ -1,10 +1,10 @@
 # ------------------------------------------------------------------------------
-# constr.xdc
+# constr_cw340.xdc
 #
 # Author(s): Tom Szymkowiak <thomas.szymkowiak@tuni.fi>
 # Date     : 25-may-2026
 #
-# Description: Constraints file for main abr_fpga project
+# Description: Constraints file for main abr_fpga project on the cw340 board
 # ------------------------------------------------------------------------------
 
 ##################################################################

@@ -14,8 +14,15 @@ if {[info exists ::env(SCRIPT_DIR)]} {
     exit
 }
 
+if { [ info exists ::env(BOARD) ] } {
+  set BOARD $::env(BOARD);
+} else { 
+  puts "BOARD environment variable not set. Please set it to the board name."
+  exit
+}
+
 source ${SCRIPT_DIR}/common.tcl
-source ${SCRIPT_DIR}/cw340.tcl
+source ${SCRIPT_DIR}/${BOARD}.tcl
 
 log_script_entry;
 
@@ -24,7 +31,7 @@ if [info exists ::env(JOBS)] {
     set JOBS $::env(JOBS)
 } else {
     set JOBS 8
-    puts "WARNING: JOBS variable not found. Value set to $JOBS"
+    puts "WARNING: JOBS variable not found. Value set to ${JOBS}"
 }
 
 # detect IP name
@@ -32,8 +39,8 @@ if [info exists ::env(TOP_CLK_ID)] {
     set TOP_CLK_ID $::env(TOP_CLK_ID)
     puts "NOTE: TOP_CLK_ID set to ${TOP_CLK_ID}"
 } else {
-    set TOP_CLK_ID "ip_top_clk"
-    puts "WARNING: TOP_CLK_ID variable not found. Value set to ${TOP_CLK_ID}"
+    puts "WARNING: TOP_CLK_ID variable not set. Please set it to IP name."
+    exit
 }
 
 # detect input clock period definition
@@ -76,7 +83,7 @@ set_property -dict [eval list \
   CONFIG.MMCM_CLKIN1_PERIOD         {$INPUT_OSC_PERIOD_NS} \
   CONFIG.PRIM_IN_FREQ               {$INPUT_OSC_FREQ_MHZ}  \
   CONFIG.CLKOUT1_REQUESTED_OUT_FREQ {$TOP_CLK_FREQ_MHZ}    \
-  CONFIG.CLKOUT1_DRIVES             {Buffer}               \
+  CONFIG.CLKOUT1_DRIVES             {BUFG}                 \
   CONFIG.CLK_OUT1_PORT              {clk_out}              \
   CONFIG.LOCKED_PORT                {clk_lock}             \
 ] [get_ips ${IP_NAME}]

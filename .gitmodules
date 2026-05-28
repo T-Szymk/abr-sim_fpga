@@ -4,3 +4,6 @@
 [submodule "fpga/cw340-luna-board"]
 	path = fpga/cw340-luna-board
 	url = https://github.com/newaetech/cw340-luna-board.git
+[submodule "fpga/cw310-bergen-board"]
+	path = fpga/cw310-bergen-board
+	url = https://github.com/newaetech/cw310-bergen-board

@@ -9,6 +9,13 @@
 #              using the OOC flow
 # ------------------------------------------------------------------------------
 
+if {[info exists ::env(CURR_DIR)]} {
+    set CURR_DIR $::env(CURR_DIR)
+} else {
+    puts "CURR_DIR environment variable not set. Please set it to the /fpga directory."
+    exit
+}
+
 if {[info exists ::env(SCRIPT_DIR)]} {
     set SCRIPT_DIR $::env(SCRIPT_DIR)
 } else {
@@ -51,8 +58,15 @@ if { [ info exists ::env(EDIF_DIR) ] } {
   exit
 }
 
+if { [ info exists ::env(BOARD) ] } {
+  set BOARD $::env(BOARD);
+} else { 
+  puts "BOARD environment variable not set. Please set it to the board name."
+  exit
+}
+
 source ${SCRIPT_DIR}/common.tcl
-source ${SCRIPT_DIR}/cw340.tcl
+source ${SCRIPT_DIR}/${BOARD}.tcl
 
 set ADAMSBRIDGE_ROOT [file normalize "${CURR_DIR}/../adams-bridge"]
 set FPGA_SRC_DIR     [file normalize "${CURR_DIR}/rtl"]
@@ -60,7 +74,7 @@ set CONSTR "${SCRIPT_DIR}/constr_ooc.xdc"
 
 log_script_entry;
 
-create_project ${OOC_PROJECT_NAME} ${OOC_PROJECT_DIR} -part ${XLNX_PRT_ID};
+create_project ${OOC_PROJECT_NAME}_${BOARD} ${OOC_PROJECT_DIR} -part ${XLNX_PRT_ID};
 
 # set top design
 set_property top ${OOC_TOP_MODULE} [current_fileset]
