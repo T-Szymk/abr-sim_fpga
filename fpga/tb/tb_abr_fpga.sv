@@ -12,8 +12,6 @@ module tb_abr_fpga;
     parameter op_e             OPERATION    = OP_KGSIGN;
     parameter integer unsigned RESET_CYCLES = 16;
 
-    parameter integer unsigned TEST_LOOP_COUNT = 1; // Number of times to repeat the operation
-
     // Clock and reset
     logic clk_i;
     logic rst_ni;
@@ -23,8 +21,6 @@ module tb_abr_fpga;
     logic error_intr_o;
     logic notif_intr_o;
     logic ext_trigger;
-
-    integer unsigned test_loop_counter;
 
     typedef enum logic [1:0] {
         ST_IDLE,
@@ -55,14 +51,13 @@ module tb_abr_fpga;
     // TB State machine to trigger operation
     always_ff @(posedge clk_i or negedge rst_ni) begin
         if (!rst_ni) begin
-            ext_trigger       <= 0;
-            tb_state          <= ST_IDLE;
-            test_loop_counter <= 0;
+            ext_trigger <= 0;
+            tb_state    <= ST_IDLE;
         end else begin
             case (tb_state)
                 ST_IDLE: begin
                     // Wait for a few cycles after reset before starting the operation
-                    if ($realtime > (TB_RESET_DURATION + 10ns)) begin
+                    if ($realtime > (TB_RESET_DURATION + (2 * RESET_CYCLES * TB_CLOCK_PERIOD))) begin
                         ext_trigger <= 1; // Trigger the operation
                         tb_state <= ST_START_OP;
                     end
@@ -76,14 +71,8 @@ module tb_abr_fpga;
                 ST_WAIT_FOR_DONE: begin                    
                     // Wait for done_o to be asserted by the DUT (handled in the monitor below)
                     if (done_o) begin
-                        if (test_loop_counter < TEST_LOOP_COUNT) begin
-                            test_loop_counter <= test_loop_counter + 1;
-                            ext_trigger       <= 1; // Trigger the next operation
-                            tb_state          <= ST_START_OP;
-                        end else begin
-                            $display("TB: Operation completed successfully at %0t", $realtime);
-                            $finish;
-                        end
+                        $display("TB: Operation completed successfully at %0t", $realtime);
+                        $finish;
                     end else if (error_o) begin
                         $display("TB: Operation failed with error at %0t", $realtime);
                         $finish;

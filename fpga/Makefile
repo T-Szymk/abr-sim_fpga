@@ -330,7 +330,7 @@ VFLAGS := \
 
 .PHONY: vinit vbuild vrun vclean
 
-VLOG_FILE     = $(LOG_DIR)/verilator_$(DATE).log
+VLOG_FILE = $(LOG_DIR)/verilator_$(DATE).log
 
 vinit: vclean
 	@mkdir -p $(V_BUILD_DIR)
@@ -348,7 +348,10 @@ $(V_BUILD_DIR)/V$(SIM_TOP_MODULE): $(V_SRCS)
 
 vclean:
 	@rm -rf $(V_BUILD_DIR)
+	@rm -f $(V_BUILD_DIR)/V$(SIM_TOP_MODULE)
 	@rm -f $(BUILD_DIR)/V$(SIM_TOP_MODULE)
+	@rm -f $(BUILD_DIR)/*.vcd
+	@rm -f $(BUILD_DIR)/*.fst
 
 ################################################################################
 
