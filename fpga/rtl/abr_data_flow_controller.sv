@@ -161,10 +161,11 @@ assign b_addr_o = b_addr_q;
   
           a_req_o      = 1'b1;   // prepare next transfer from A
           a_write_o    = 1'b0;   // Read from A
-          
-          a_addr_d     = a_addr_q + WordWidthBytes; // advance A address as read lags by a cycle
-          b_addr_d     = b_addr_q + WordWidthBytes;     // Increment B address for next beat
-          byte_count_d = byte_count_q + WordWidthBytes; // Increment byte count          
+
+          // Only increment addresses if we are not on the last transfer
+          a_addr_d     = a_addr_q + WordWidthBytes;     
+          b_addr_d     = b_addr_q + WordWidthBytes;     
+          byte_count_d = byte_count_q + WordWidthBytes; 
 
         end        
 
@@ -191,9 +192,10 @@ assign b_addr_o = b_addr_q;
           b_req_o      = 1'b1; // prepare next transfer from B
           b_write_o    = 1'b0; // Read from B
 
-          a_addr_d     = a_addr_q + WordWidthBytes;     // Increment A address for next beat
-          b_addr_d     = b_addr_q + WordWidthBytes; // advance B address as read lags by a cycle
-          byte_count_d = byte_count_q + WordWidthBytes; // Increment byte count          
+          // Only increment addresses if we are not on the last transfer
+          a_addr_d     = a_addr_q + WordWidthBytes;     
+          b_addr_d     = b_addr_q + WordWidthBytes;     
+          byte_count_d = byte_count_q + WordWidthBytes; 
  
         end
       end
