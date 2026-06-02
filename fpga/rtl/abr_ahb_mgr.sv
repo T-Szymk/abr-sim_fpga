@@ -1,4 +1,4 @@
-// ahb_mgr.sv — AHB-Lite manager (master)
+// abr_ahb_mgr.sv — AHB-Lite manager (master)
 // Drives a single subordinate with a simple req/ready handshake.
 // Back-to-back transfers are supported: assert req_i while ready_o is high.
 
@@ -35,91 +35,92 @@ module abr_ahb_mgr #(
     input  logic [AHB_DATA_WIDTH-1:0]     hrdata_i
 );
 
-    timeunit 1ns / 1ps;
+  timeunit 1ns / 1ps;
 
-    localparam logic [1:0] HTRANS_IDLE   = 2'b00;
-    localparam logic [1:0] HTRANS_NONSEQ = 2'b10;
+  localparam logic [1:0] HTRANS_IDLE   = 2'b00;
+  localparam logic [1:0] HTRANS_NONSEQ = 2'b10;
 
-    typedef enum logic { ST_IDLE, ST_DATA } state_t;
-    state_t state_q, state_d;
+  typedef enum logic { ST_IDLE, ST_DATA } state_t;
+  state_t state_q, state_d;
 
-    // Registered data-phase info (captured when address phase is launched)
-    logic                        dp_write_q;
-    logic [AHB_DATA_WIDTH-1:0]   dp_wdata_q;
+  // Registered data-phase info (captured when address phase is launched)
+  logic                        dp_write_q;
+  logic [AHB_DATA_WIDTH-1:0]   dp_wdata_q;
 
-    // HREADY is a pass-through to the subordinate for single-manager topologies
-    assign hready_o = hreadyout_i;
+  // HREADY is a pass-through to the subordinate for single-manager topologies
+  assign hready_o = hreadyout_i;
 
-    always_comb begin
-        state_d  = state_q;
-        ready_o  = 1'b0;
-        done_o   = 1'b0;
-        rdata_o  = hrdata_i;
-        error_o  = 1'b0;
+  always_comb begin
 
-        hsel_o   = 1'b0;
-        htrans_o = HTRANS_IDLE;
-        haddr_o  = addr_i;
-        hwrite_o = write_i;
-        hsize_o  = size_i;
+    state_d  = state_q;
+    ready_o  = 1'b0;
+    done_o   = 1'b0;
+    rdata_o  = hrdata_i;
+    error_o  = 1'b0;
+
+    hsel_o   = 1'b0;
+    htrans_o = HTRANS_IDLE;
+    haddr_o  = addr_i;
+    hwrite_o = write_i;
+    hsize_o  = size_i;
+    hwdata_o = dp_wdata_q;
+
+    unique case (state_q)
+
+      ST_IDLE: begin
+        ready_o = 1'b1;
+        if (req_i) begin
+          hsel_o   = 1'b1;
+          htrans_o = HTRANS_NONSEQ;
+          state_d  = ST_DATA;
+        end
+      end
+
+      ST_DATA: begin
+        // Hold data-phase info for the subordinate
+        hsel_o   = 1'b1;
+        hwrite_o = dp_write_q;
         hwdata_o = dp_wdata_q;
 
-        unique case (state_q)
+        if (hreadyout_i) begin
+                
+          done_o  = 1'b1;
+          error_o = hresp_i;
 
-            ST_IDLE: begin
-                ready_o = 1'b1;
-                if (req_i) begin
-                    hsel_o   = 1'b1;
-                    htrans_o = HTRANS_NONSEQ;
-                    state_d  = ST_DATA;
-                end
-            end
-
-            ST_DATA: begin
-                // Hold data-phase info for the subordinate
-                hsel_o   = 1'b1;
-                hwrite_o = dp_write_q;
-                hwdata_o = dp_wdata_q;
-
-                if (hreadyout_i) begin
-                    done_o  = 1'b1;
-                    error_o = hresp_i;
-
-                    if (req_i) begin
-                        // Back-to-back: launch next address phase this cycle
-                        htrans_o = HTRANS_NONSEQ;
-                        haddr_o  = addr_i;
-                        hwrite_o = write_i;
-                        hsize_o  = size_i;
-                        ready_o  = 1'b1;
-                        state_d  = ST_DATA;
-                    end else begin
-                        hsel_o   = 1'b0;
-                        htrans_o = HTRANS_IDLE;
-                        ready_o  = 1'b1;
-                        state_d  = ST_IDLE;
-                    end
-                end
-                // else: wait state — hold signals, no new address phase
-            end
-
-        endcase
-    end
-
-    always_ff @(posedge clk_i or negedge rst_ni) begin
-        if (!rst_ni) begin
-            state_q    <= ST_IDLE;
-            dp_write_q <= '0;
-            dp_wdata_q <= '0;
-        end else begin
-            state_q <= state_d;
-            // Capture address-phase info into data-phase regs when a transfer is accepted
-            if (ready_o && req_i) begin
-                dp_write_q <= write_i;
-                dp_wdata_q <= wdata_i;
-            end
+          if (req_i) begin
+            // Back-to-back: launch next address phase this cycle
+            htrans_o = HTRANS_NONSEQ;
+            haddr_o  = addr_i;
+            hwrite_o = write_i;
+            hsize_o  = size_i;
+            ready_o  = 1'b1;
+            state_d  = ST_DATA;
+          end else begin
+            hsel_o   = 1'b0;
+            htrans_o = HTRANS_IDLE;
+            ready_o  = 1'b1;
+            state_d  = ST_IDLE;
+          end
         end
+      // else: wait state — hold signals, no new address phase
+      end
+    endcase
+  end
+
+  always_ff @(posedge clk_i or negedge rst_ni) begin
+    if (!rst_ni) begin
+      state_q    <= ST_IDLE;
+      dp_write_q <= '0;
+      dp_wdata_q <= '0;
+    end else begin
+      state_q <= state_d;
+      // Capture address-phase info into data-phase regs when a transfer is accepted
+      if (ready_o && req_i) begin
+        dp_write_q <= write_i;
+        dp_wdata_q <= wdata_i;
+      end
     end
+  end
 
 endmodule : abr_ahb_mgr
 

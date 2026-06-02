@@ -9,6 +9,7 @@ LOG_DIR       = $(BUILD_DIR)/logs
 SIM_DIR       = $(CURR_DIR)/sim
 FPGA_SRC_DIR  = $(CURR_DIR)/rtl
 FPGA_TB_DIR   = $(CURR_DIR)/tb
+CW310_DIR     = $(CURR_DIR)/cw310-bergen-board
 
 FPGA_SV_FILES    = $(FPGA_SRC_DIR)/abr_fpga_pkg.sv      \
                    $(FPGA_SRC_DIR)/abr_mem_fpga.sv      \
@@ -193,35 +194,47 @@ ABR_SV_FILES     = ${ADAMSBRIDGE_ROOT}/src/abr_top/rtl/abr_config_defines.svh   
                    ${ADAMSBRIDGE_ROOT}/src/abr_top/rtl/abr_top.sv                             \
                    ${ADAMSBRIDGE_ROOT}/src/abr_top/rtl/abr_reg.sv
 
-FPGA_TB_SV_FILES = $(FPGA_TB_DIR)/tb_abr_fpga.sv
+CW_SRC_FILES     = $(CW310_DIR)/fpga/aes/hdl/aes_core.v         \
+                   $(CW310_DIR)/fpga/aes/hdl/aes_ks.v           \
+                   $(CW310_DIR)/fpga/aes/hdl/aes_sbox.v         \
+                   $(CW310_DIR)/fpga/aes/hdl/cdc_pulse.v        \
+                   $(CW310_DIR)/fpga/aes/hdl/clocks.v           \
+                   $(CW310_DIR)/fpga/aes/hdl/cw310_reg_aes.v    \
+                   $(CW310_DIR)/fpga/aes/hdl/cw310_top.v        \
+                   $(CW310_DIR)/fpga/aes/hdl/cw310_usb_reg_fe.v
 
-INC_DIRS         := +incdir+${ADAMSBRIDGE_ROOT}/src/abr_top/rtl           \
-                    +incdir+${ADAMSBRIDGE_ROOT}/src/abr_libs/rtl          \
-                    +incdir+${ADAMSBRIDGE_ROOT}/src/abr_sampler_top/rtl   \
-                    +incdir+${ADAMSBRIDGE_ROOT}/src/rej_bounded/rtl       \
-                    +incdir+${ADAMSBRIDGE_ROOT}/src/rej_sampler/rtl       \
-                    +incdir+${ADAMSBRIDGE_ROOT}/src/exp_mask/rtl          \
-                    +incdir+${ADAMSBRIDGE_ROOT}/src/sample_in_ball/rtl    \
-                    +incdir+${ADAMSBRIDGE_ROOT}/src/cbd_sampler/rtl       \
-                    +incdir+${ADAMSBRIDGE_ROOT}/src/abr_sha3/rtl          \
-                    +incdir+${ADAMSBRIDGE_ROOT}/src/abr_prim/rtl          \
-                    +incdir+${ADAMSBRIDGE_ROOT}/src/abr_prim_generic/rtl  \
-                    +incdir+${ADAMSBRIDGE_ROOT}/src/ntt_top/rtl           \
-                    +incdir+${ADAMSBRIDGE_ROOT}/src/barrett_reduction/rtl \
-                    +incdir+${ADAMSBRIDGE_ROOT}/src/decompose/rtl         \
-                    +incdir+${ADAMSBRIDGE_ROOT}/src/sk_decode/rtl         \
-                    +incdir+${ADAMSBRIDGE_ROOT}/src/sk_encode/rtl         \
-                    +incdir+${ADAMSBRIDGE_ROOT}/src/makehint/rtl          \
-                    +incdir+${ADAMSBRIDGE_ROOT}/src/norm_check/rtl        \
-                    +incdir+${ADAMSBRIDGE_ROOT}/src/sig_encode_z/rtl      \
-                    +incdir+${ADAMSBRIDGE_ROOT}/src/sigdecode_h/rtl       \
-                    +incdir+${ADAMSBRIDGE_ROOT}/src/sig_decode_z/rtl      \
-                    +incdir+${ADAMSBRIDGE_ROOT}/src/pk_decode/rtl         \
-                    +incdir+${ADAMSBRIDGE_ROOT}/src/power2round/rtl       \
-                    +incdir+${ADAMSBRIDGE_ROOT}/src/compress/rtl          \
-                    +incdir+${ADAMSBRIDGE_ROOT}/src/decompress/rtl
+FPGA_TB_SV_FILES = $(FPGA_TB_DIR)/tb_cw310_pkg.sv \
+									 $(FPGA_TB_DIR)/tb_abr_fpga.sv \
+									 $(FPGA_TB_DIR)/tb_cw310_aes.sv
 
-SIM_TOP_MODULE    ?= tb_abr_fpga
+INC_DIRS         = +incdir+${ADAMSBRIDGE_ROOT}/src/abr_top/rtl           \
+                   +incdir+${ADAMSBRIDGE_ROOT}/src/abr_libs/rtl          \
+                   +incdir+${ADAMSBRIDGE_ROOT}/src/abr_sampler_top/rtl   \
+                   +incdir+${ADAMSBRIDGE_ROOT}/src/rej_bounded/rtl       \
+                   +incdir+${ADAMSBRIDGE_ROOT}/src/rej_sampler/rtl       \
+                   +incdir+${ADAMSBRIDGE_ROOT}/src/exp_mask/rtl          \
+                   +incdir+${ADAMSBRIDGE_ROOT}/src/sample_in_ball/rtl    \
+                   +incdir+${ADAMSBRIDGE_ROOT}/src/cbd_sampler/rtl       \
+                   +incdir+${ADAMSBRIDGE_ROOT}/src/abr_sha3/rtl          \
+                   +incdir+${ADAMSBRIDGE_ROOT}/src/abr_prim/rtl          \
+                   +incdir+${ADAMSBRIDGE_ROOT}/src/abr_prim_generic/rtl  \
+                   +incdir+${ADAMSBRIDGE_ROOT}/src/ntt_top/rtl           \
+                   +incdir+${ADAMSBRIDGE_ROOT}/src/barrett_reduction/rtl \
+                   +incdir+${ADAMSBRIDGE_ROOT}/src/decompose/rtl         \
+                   +incdir+${ADAMSBRIDGE_ROOT}/src/sk_decode/rtl         \
+                   +incdir+${ADAMSBRIDGE_ROOT}/src/sk_encode/rtl         \
+                   +incdir+${ADAMSBRIDGE_ROOT}/src/makehint/rtl          \
+                   +incdir+${ADAMSBRIDGE_ROOT}/src/norm_check/rtl        \
+                   +incdir+${ADAMSBRIDGE_ROOT}/src/sig_encode_z/rtl      \
+                   +incdir+${ADAMSBRIDGE_ROOT}/src/sigdecode_h/rtl       \
+                   +incdir+${ADAMSBRIDGE_ROOT}/src/sig_decode_z/rtl      \
+                   +incdir+${ADAMSBRIDGE_ROOT}/src/pk_decode/rtl         \
+                   +incdir+${ADAMSBRIDGE_ROOT}/src/power2round/rtl       \
+                   +incdir+${ADAMSBRIDGE_ROOT}/src/compress/rtl          \
+                   +incdir+${ADAMSBRIDGE_ROOT}/src/decompress/rtl        \
+                   +incdir+$(CW310_DIR)/fpga/aes/hdl/
+
+SIM_TOP_MODULE    ?= tb_310_aes
 
 ################################################################################
 
@@ -235,14 +248,15 @@ Q_FPGA_TB_LIB       = questa_fpga_tb_lib
 Q_FPGA_TB_LIB_PATH  = $(Q_BUILD_DIR)/$(Q_FPGA_TB_LIB)
 
 VLOG_OPTS     ?=
-VLOG_OPTS     += -sv
 VLOG_OPTS     += -mfcu
 VLOG_OPTS     += $(MODELSIM_INI_PATH)
 VLOG_OPTS     += -quiet
 VLOG_OPTS     += -logfile $(LOG_DIR)/vlog_$(DATE).log
 VLOG_OPTS     += $(INC_DIRS)
-VLOG_OPTS     += +define+TECH_SPECIFIC_ICG
-VLOG_OPTS     += +define+SIMULATION
+VLOG_OPTS     += +define+TECH_SPECIFIC_ICG \
+								 +define+SIMULATION \
+								 +define+NOMIG \
+								 +define+__ICARUS__
 
 
 VLOG_SUPPRESS ?= -suppress vlog-13314
@@ -274,13 +288,14 @@ sim_init: sim_clean
 
 
 sim_lib: sim_init
-	@cd $(Q_BUILD_DIR)                            && \
+	@cd $(Q_BUILD_DIR)                           && \
 	 vlib $(Q_FPGA_TB_LIB_PATH)                  && \
 	 vmap $(Q_FPGA_TB_LIB) $(Q_FPGA_TB_LIB_PATH)
 
 
 sim_compile: sim_lib
-	@vlog $(VLOG_OPTS) -work $(Q_FPGA_TB_LIB)  $(VLOG_SUPPRESS) $(ABR_SV_FILES) $(FPGA_SV_FILES) $(FPGA_TB_SV_FILES)
+	@vlog $(VLOG_OPTS) -work $(Q_FPGA_TB_LIB)  $(VLOG_SUPPRESS) $(CW_SRC_FILES)
+	@vlog $(VLOG_OPTS) -sv -work $(Q_FPGA_TB_LIB)  $(VLOG_SUPPRESS) $(ABR_SV_FILES) $(FPGA_SV_FILES) $(FPGA_TB_SV_FILES)	
 
 
 sim_opt: sim_compile
