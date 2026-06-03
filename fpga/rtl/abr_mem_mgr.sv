@@ -23,8 +23,8 @@
 module abr_mem_mgr 
   import abr_fpga_pkg::*;
 #(
-    parameter  int unsigned MEM_ADDR_WIDTH    = 32,
-    parameter  int unsigned MEM_DATA_WIDTH    = 64,
+    parameter  int unsigned MEM_ADDR_WIDTH    = 32, // TODO: This should be a constant in a package
+    parameter  int unsigned MEM_DATA_WIDTH    = 32, // TODO: This should be a constant in a package
     localparam int unsigned MemDataWidthBytes = (MEM_DATA_WIDTH / 8)
 ) (
   // Request interface
@@ -41,10 +41,10 @@ module abr_mem_mgr
   output logic                          error_o,  // subordinate returned HRESP ERROR
 
   // Memory interface
-  output logic [   MEM_ADDR_WIDTH-1:0] addr_o,   // Port A address bus, width determined from RAM_DEPTH
-  output logic [   MEM_DATA_WIDTH-1:0] wdata_o,  // Port A RAM input data
-  output logic [MemDataWidthBytes-1:0] wea_o,    // Port A write enable
-  input  logic [   MEM_DATA_WIDTH-1:0] rdata_i   // Port A RAM output data
+  output logic [   MEM_ADDR_WIDTH-1:0] addr_o,   // Mem Port address bus, width determined from RAM_DEPTH
+  output logic [   MEM_DATA_WIDTH-1:0] wdata_o,  // Mem Port RAM input data
+  output logic [MemDataWidthBytes-1:0] we_o,     // Mem Port write enable
+  input  logic [   MEM_DATA_WIDTH-1:0] rdata_i   // Mem Port RAM output data
 );
 
   timeunit 1ns / 1ps;
@@ -53,25 +53,10 @@ module abr_mem_mgr
   assign wdata_o = (req_i & write_i) ? wdata_i : '0;
   assign rdata_o = rdata_i;
 
-  assign ready_o = 1'b1;  // Always ready to accept requests
-  assign done_o  = req_i; // Transfer completes in the same cycle as request
-  assign error_o = 1'b0;  // No error conditions in this simple manager
-
-  always_comb begin
-
-    wea_o = '0;
-    
-    if (req_i & write_i) begin
-      case (size_e'(size_i)) 
-        SIZE_8B:  wea_o = 8'h01  << addr_i[2:0]; // 8-bit
-        SIZE_16B: wea_o = 8'h03  << addr_i[2:0]; // 16-bit
-        SIZE_32B: wea_o = 8'h0F  << addr_i[2:0]; // 32-bit
-        SIZE_64B: wea_o = 8'hFF;                   // 64-bit (full word)
-        default:  wea_o = '0;                      // Invalid size, no write
-      endcase 
-    end
-  end
-
+  assign ready_o = 1'b1;                                   // Always ready to accept requests
+  assign done_o  = req_i;                                  // Transfer completes in the same cycle as request
+  assign error_o = 1'b0;                                   // No error conditions in this simple manager
+  assign we_o    = (req_i & write_i) ? (1 << size_i) : '0; // Generate byte enables based on size
 
   /* Assertions */
   

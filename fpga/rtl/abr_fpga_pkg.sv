@@ -22,7 +22,22 @@ package abr_fpga_pkg;
         SIZE_32B = 3'b010,
         SIZE_64B = 3'b011
     } size_e;
-    
+
+    // -----------------------------------------------------------------------
+    // BRAM Memory Sizing Parameters
+    // -----------------------------------------------------------------------
+    localparam int unsigned COL_WIDTH      =    8;                                // Number of bits in a byte
+    localparam int unsigned NB_COL         =    1;                                // Number of byte-columns in each RAM word. Must divide 32 (the AHB data width) for byte-write support.
+    localparam int unsigned RAM_WIDTH      = NB_COL * COL_WIDTH;                  // Number of byte-columns in
+    localparam int unsigned A_DATA_WIDTH   = RAM_WIDTH;                           // Width of data to/from BRAM (e.g. 8 bits for a single byte)
+    localparam int unsigned B_DATA_WIDTH   =   32;                                // Width of data to/from AHB    
+    localparam int unsigned RAM_COUNT      = B_DATA_WIDTH / (NB_COL * COL_WIDTH); // Number of parallel RAMs needed to achieve DATA_WIDTH                    // Width of each individual RAM (e.g. 8 bits for a single byte)
+    localparam int unsigned RAM_DEPTH      = 2048 / RAM_COUNT;                    // Number of 32-bit words in the BRAM. Must be >= the largest base_addr + num_words in any descriptor table. With 2048 words, we can cover up to address 0x1FFF with 32-bit words.
+    localparam int unsigned RAM_ADDR_WIDTH = $clog2(RAM_DEPTH);
+    localparam int unsigned A_ADDR_WIDTH   = 20;                                   // Address width matches USB address width, which is independent of RAM_DEPTH since the BRAMs are accessed with a word-aligned address and the RAM array module handles the internal byte addressing.
+    localparam int unsigned B_ADDR_WIDTH   = RAM_ADDR_WIDTH; 
+    localparam int unsigned B_WE_WIDTH     = B_DATA_WIDTH / 8;             
+
     // -----------------------------------------------------------------------
     // AHB register base addresses
     // -----------------------------------------------------------------------

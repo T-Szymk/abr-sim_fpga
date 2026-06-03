@@ -3,18 +3,19 @@
 // Protocol specific controls are placed outside of this module to keep it protocol-agnostic
 
 
-module abr_memory_transfer_controller #(
+module abr_memory_transfer_controller 
+  import abr_fpga_pkg::*;
+#(
     parameter int unsigned ADDR_WIDTH      = 32,
-    parameter int unsigned DATA_WIDTH      = 64,            // B interface width
-    localparam int unsigned A_DATA_WIDTH   = DATA_WIDTH / 2, // A interface: 32b
-    localparam int unsigned SizeWidth      =  3,
-    localparam int unsigned BLenWidth      = 16              // Byte length of bursts
+    parameter int unsigned DATA_WIDTH      = 64, // B interface width           // TODO: This should be a constant in a package
+    localparam int unsigned A_DATA_WIDTH   = 32, // A interface: 32b            // TODO: This should be a constant in a package
+    localparam int unsigned SizeWidth      =  3, // Width of size field for AHB // TODO: This should be a constant in a package
+    localparam int unsigned BLenWidth      = 16  // Byte length of bursts       // TODO: This should be a constant in a package
 ) (
     input  logic                     clk_i,
     input  logic                     rst_ni,
 
     // Controls
-
     input   logic                    start_i,    // pulse to start a transfer sequence
     input   logic [ADDR_WIDTH-1:0]   b_addr_i,   // base address for B interface
     input   logic [BLenWidth-1:0]    b_len_i,    // number of bytes to transfer (must be multiple of 4)
@@ -23,8 +24,8 @@ module abr_memory_transfer_controller #(
     // A interface (32-bit BRAM)
     output  logic                    a_req_o,
     output  logic                    a_write_o,
-    output  logic [SizeWidth-1:0]    a_size_o,   // always SIZE_32B
-    output  logic [ADDR_WIDTH-1:0]   a_addr_o,
+    output  logic [   SizeWidth-1:0] a_size_o,   // always SIZE_32B
+    output  logic [  ADDR_WIDTH-1:0] a_addr_o,
     output  logic [A_DATA_WIDTH-1:0] a_wdata_o,
     input   logic [A_DATA_WIDTH-1:0] a_rdata_i,
     input   logic                    a_ready_i,  // NOTE: Assumed to always be ready
@@ -32,7 +33,7 @@ module abr_memory_transfer_controller #(
     // B interface (64-bit AHB, 32-bit sub-word accesses with byte-lane packing)
     output  logic                    b_req_o,
     output  logic                    b_write_o,
-    output  logic [SizeWidth-1:0]    b_size_o,   // always SIZE_32B
+    output  logic [ SizeWidth-1:0]   b_size_o,   // always SIZE_32B
     output  logic [ADDR_WIDTH-1:0]   b_addr_o,
     output  logic [DATA_WIDTH-1:0]   b_wdata_o,
     input   logic [DATA_WIDTH-1:0]   b_rdata_i,
@@ -46,9 +47,7 @@ module abr_memory_transfer_controller #(
   timeunit 1ns / 1ps;
 
   // All transfers are 32-bit words; stride = 4 bytes
-  localparam int unsigned WordShift = 2;
-  // SIZE_32B encoding per abr_fpga_pkg::size_e (log2(4) = 2)
-  localparam logic [SizeWidth-1:0] K_SIZE_32B = SizeWidth'(WordShift);
+  localparam int unsigned WordShift = $clog2(4);
 
   // -------------------------------------------------------------------------
   // Latched transfer parameters
@@ -138,12 +137,12 @@ module abr_memory_transfer_controller #(
   always_comb begin
     a_req_o   = 1'b0;
     a_write_o = 1'b0;
-    a_size_o  = K_SIZE_32B;
+    a_size_o  = SIZE_32B;
     a_addr_o  = '0;
     a_wdata_o = '0;
     b_req_o   = 1'b0;
     b_write_o = 1'b0;
-    b_size_o  = K_SIZE_32B;
+    b_size_o  = SIZE_32B;
     b_addr_o  = '0;
     b_wdata_o = '0;
 
