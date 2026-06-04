@@ -3,8 +3,8 @@
 // Back-to-back transfers are supported: assert req_i while ready_o is high.
 
 module abr_ahb_mgr #(
-    parameter int unsigned AHB_ADDR_WIDTH = 32,
-    parameter int unsigned AHB_DATA_WIDTH = 32
+    parameter int unsigned AHB_ADDR_WIDTH = 32, // TODO: Take these from a package instead  
+    parameter int unsigned AHB_DATA_WIDTH = 32  // TODO: Take these from a package instead
 ) (
     input  logic                          clk_i,
     input  logic                          rst_ni,

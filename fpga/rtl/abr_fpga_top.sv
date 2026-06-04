@@ -24,723 +24,265 @@
 `include "abr_prim_assert.sv"
 
 module abr_fpga_top
-    import abr_fpga_pkg::*;
-    import abr_params_pkg::*;
-    import abr_ctrl_pkg::*;
-#(
-    parameter op_e OPERATION    = OP_KEYGEN,
-    parameter int  RESET_CYCLES = 16        // cycles abr_top rst_b is held low
-)
+  import abr_fpga_pkg::*;
+  import abr_params_pkg::*;
+  import abr_ctrl_pkg::*;
 (
-    input  logic clk_i,
-    input  logic rst_ni,      // active-low board/PLL reset
+  input  logic clk_i,
+  input  logic rst_ni,      // active-low board/PLL reset
 
 `ifdef RV_FPGA_SCA
-    output wire NTT_trigger,
-    output wire PWM_trigger,
-    output wire PWA_trigger,
-    output wire INTT_trigger,
+  output wire NTT_trigger,
+  output wire PWM_trigger,
+  output wire PWA_trigger,
+  output wire INTT_trigger,
 `endif
 
-    input  logic ext_trigger_i, // e.g. external trigger to start the operation; usage depends on the platform
-
-    output logic done_o,      // pulses high for one cycle when operation completes
-    output logic error_o,     // asserted and held on STATUS error
-
-    // abr_top status pass-through
-    output logic busy_o,
-    output logic error_intr_o,
-    output logic notif_intr_o
+  //ahb input
+  input  wire  [AHB_ADDR_WIDTH-1:0] haddr_i,
+  input  wire  [AHB_DATA_WIDTH-1:0] hwdata_i,
+  input  wire                       hsel_i,
+  input  wire                       hwrite_i,
+  input  wire                       hready_i,
+  input  wire  [               1:0] htrans_i,
+  input  wire  [               2:0] hsize_i,
+  //ahb output
+  output wire                       hresp_o,
+  output wire                       hreadyout_o,
+  output wire  [AHB_DATA_WIDTH-1:0] hrdata_o,
+  // abr_top status pass-through
+  output logic                      busy_o,
+  output logic                      error_intr_o,
+  output logic                      notif_intr_o
 );
 
-    timeunit 1ns/1ps;
+  timeunit 1ns/1ps;
 
-    // -----------------------------------------------------------------------
-    // Localparams — resolved from package constants at elaboration time
-    // -----------------------------------------------------------------------
+  // -----------------------------------------------------------------------
+  // AHB bus parameters
+  // -----------------------------------------------------------------------
+  localparam int unsigned AHB_ADDR_W = 32;
+  localparam int unsigned AHB_DATA_W = 64;  // abr_top default
 
-    // Select the descriptor table and control word for this operation
-    localparam wr_desc_t DESC [MAX_DESC] =
-        (OPERATION == OP_KEYGEN) ? KEYGEN_DESC  :
-        (OPERATION == OP_SIGN)   ? SIGN_DESC    :
-        (OPERATION == OP_VERIFY) ? VERIFY_DESC  :
-                                   KGSIGN_DESC;
+  // -----------------------------------------------------------------------
+  // Memory interface
+  // -----------------------------------------------------------------------
+  abr_mem_if abr_memory_export();
 
-    localparam int unsigned NUM_DESC =
-        (OPERATION == OP_KEYGEN) ? KEYGEN_NUM_DESC  :
-        (OPERATION == OP_SIGN)   ? SIGN_NUM_DESC    :
-        (OPERATION == OP_VERIFY) ? VERIFY_NUM_DESC  :
-                                   KGSIGN_NUM_DESC;
+  // Flat signals connecting abr_top_wrapper ↔ abr_mem_if_pack
+  logic                            w1_mem_we,       w1_mem_re;
+  logic [   ABR_MEM_W1_ADDR_W-1:0] w1_mem_waddr,    w1_mem_raddr;
+  logic [   ABR_MEM_W1_DATA_W-1:0] w1_mem_wdata,    w1_mem_rdata;
 
-    localparam logic [31:0] OP_CTRL =
-        (OPERATION == OP_KEYGEN) ? KEYGEN_CTRL  :
-        (OPERATION == OP_SIGN)   ? SIGN_CTRL    :
-        (OPERATION == OP_VERIFY) ? VERIFY_CTRL  :
-                                   KGSIGN_CTRL;
+  logic                            mem_inst0_bank0_we,    mem_inst0_bank0_re;
+  logic [ABR_MEM_INST0_ADDR_W-1:0] mem_inst0_bank0_waddr, mem_inst0_bank0_raddr;
+  logic [ABR_MEM_INST0_DATA_W-1:0] mem_inst0_bank0_wdata, mem_inst0_bank0_rdata;
 
-    // Read descriptor table and count for this operation
-    localparam wr_desc_t RD_DESC [MAX_DESC] =
-        (OPERATION == OP_KEYGEN) ? KEYGEN_RD_DESC  :
-        (OPERATION == OP_SIGN)   ? SIGN_RD_DESC    :
-        (OPERATION == OP_VERIFY) ? VERIFY_RD_DESC  :
-                                   KGSIGN_RD_DESC;
+  logic                            mem_inst0_bank1_we,    mem_inst0_bank1_re;
+  logic [ABR_MEM_INST0_ADDR_W-1:0] mem_inst0_bank1_waddr, mem_inst0_bank1_raddr;
+  logic [ABR_MEM_INST0_DATA_W-1:0] mem_inst0_bank1_wdata, mem_inst0_bank1_rdata;
 
-    localparam int unsigned NUM_RD_DESC =
-        (OPERATION == OP_KEYGEN) ? KEYGEN_RD_NUM_DESC  :
-        (OPERATION == OP_SIGN)   ? SIGN_RD_NUM_DESC    :
-        (OPERATION == OP_VERIFY) ? VERIFY_RD_NUM_DESC  :
-                                   KGSIGN_RD_NUM_DESC;
+  logic                            mem_inst1_we,    mem_inst1_re;
+  logic [ABR_MEM_INST1_ADDR_W-1:0] mem_inst1_waddr, mem_inst1_raddr;
+  logic [ABR_MEM_INST1_DATA_W-1:0] mem_inst1_wdata, mem_inst1_rdata;
 
-    // Counter widths
-    localparam int unsigned RESET_CNT_W = $clog2(RESET_CYCLES + 1);
-    localparam int unsigned DESC_IDX_W  = $clog2(MAX_DESC);
-    // 11 bits covers the maximum word count (PRIVKEY_WORDS = 1224)
-    localparam int unsigned WORD_IDX_W  = 11;
+  logic                            mem_inst2_we,    mem_inst2_re;
+  logic [ABR_MEM_INST2_ADDR_W-1:0] mem_inst2_waddr, mem_inst2_raddr;
+  logic [ABR_MEM_INST2_DATA_W-1:0] mem_inst2_wdata, mem_inst2_rdata;
 
-    // -----------------------------------------------------------------------
-    // AHB bus parameters
-    // -----------------------------------------------------------------------
-    localparam int unsigned AHB_ADDR_W = 32;
-    localparam int unsigned AHB_DATA_W = 64;  // abr_top default
+  logic                            mem_inst3_we,    mem_inst3_re;
+  logic [ABR_MEM_INST3_ADDR_W-1:0] mem_inst3_waddr, mem_inst3_raddr;
+  logic [ABR_MEM_INST3_DATA_W-1:0] mem_inst3_wdata, mem_inst3_rdata;
 
-    // -----------------------------------------------------------------------
-    // Internal AHB wires (ahb_mgr → abr_top)
-    // -----------------------------------------------------------------------
-    logic [AHB_ADDR_W-1:0] haddr;
-    logic [AHB_DATA_W-1:0] hwdata;
-    logic                  hsel;
-    logic                  hwrite;
-    logic                  hready;
-    logic [1:0]            htrans;
-    logic [2:0]            hsize;
-    logic                  hresp;
-    logic                  hreadyout;
-    logic [AHB_DATA_W-1:0] hrdata;
+  logic                            sk_mem_bank0_we,    sk_mem_bank0_re;
+  logic [ SK_MEM_BANK_ADDR_W-1:0]  sk_mem_bank0_waddr, sk_mem_bank0_raddr;
+  logic [ SK_MEM_BANK_DATA_W-1:0]  sk_mem_bank0_wdata, sk_mem_bank0_rdata;
 
-    // -----------------------------------------------------------------------
-    // ahb_mgr request/response interface to the FSM
-    // -----------------------------------------------------------------------
-    logic                  mgr_req;
-    logic                  mgr_write;
-    logic [2:0]            mgr_size;
-    logic [AHB_ADDR_W-1:0] mgr_addr;
-    logic [AHB_DATA_W-1:0] mgr_wdata;
-    logic                  mgr_ready;
-    logic                  mgr_done;
-    logic [AHB_DATA_W-1:0] mgr_rdata;
-    logic                  mgr_error;
+  logic                            sk_mem_bank1_we,    sk_mem_bank1_re;
+  logic [ SK_MEM_BANK_ADDR_W-1:0]  sk_mem_bank1_waddr, sk_mem_bank1_raddr;
+  logic [ SK_MEM_BANK_DATA_W-1:0]  sk_mem_bank1_wdata, sk_mem_bank1_rdata;
 
-    // -----------------------------------------------------------------------
-    // abr_top reset (driven by FSM)
-    // -----------------------------------------------------------------------
-    logic abr_rst_b;
+  logic                            sig_z_mem_we,    sig_z_mem_re;
+  logic [   SIG_Z_MEM_ADDR_W-1:0]  sig_z_mem_waddr, sig_z_mem_raddr;
+  logic [   SIG_Z_MEM_DATA_W-1:0]  sig_z_mem_wdata, sig_z_mem_rdata;
+  logic [SIG_Z_MEM_WSTROBE_W-1:0]  sig_z_mem_wstrobe;
 
-    // -----------------------------------------------------------------------
-    // Memory interface
-    // -----------------------------------------------------------------------
-    abr_mem_if abr_memory_export();
+  logic                            pk_mem_we,    pk_mem_re;
+  logic [      PK_MEM_ADDR_W-1:0]  pk_mem_waddr, pk_mem_raddr;
+  logic [      PK_MEM_DATA_W-1:0]  pk_mem_wdata, pk_mem_rdata;
+  logic [   PK_MEM_WSTROBE_W-1:0]  pk_mem_wstrobe;
 
-    // Flat signals connecting abr_top_wrapper ↔ abr_mem_if_pack
-    logic                            w1_mem_we,       w1_mem_re;
-    logic [ABR_MEM_W1_ADDR_W-1:0]    w1_mem_waddr,    w1_mem_raddr;
-    logic [ABR_MEM_W1_DATA_W-1:0]    w1_mem_wdata,    w1_mem_rdata;
+  // -----------------------------------------------------------------------
+  // abr_mem_fpga instantiation
+  // -----------------------------------------------------------------------
+  abr_mem_fpga mem_inst (
+    .clk_i             ( clk_i             ),
+    .abr_memory_export ( abr_memory_export )
+  );
 
-    logic                            mem_inst0_bank0_we,    mem_inst0_bank0_re;
-    logic [ABR_MEM_INST0_ADDR_W-1:0] mem_inst0_bank0_waddr, mem_inst0_bank0_raddr;
-    logic [ABR_MEM_INST0_DATA_W-1:0] mem_inst0_bank0_wdata, mem_inst0_bank0_rdata;
-
-    logic                            mem_inst0_bank1_we,    mem_inst0_bank1_re;
-    logic [ABR_MEM_INST0_ADDR_W-1:0] mem_inst0_bank1_waddr, mem_inst0_bank1_raddr;
-    logic [ABR_MEM_INST0_DATA_W-1:0] mem_inst0_bank1_wdata, mem_inst0_bank1_rdata;
-
-    logic                            mem_inst1_we,    mem_inst1_re;
-    logic [ABR_MEM_INST1_ADDR_W-1:0] mem_inst1_waddr, mem_inst1_raddr;
-    logic [ABR_MEM_INST1_DATA_W-1:0] mem_inst1_wdata, mem_inst1_rdata;
-
-    logic                            mem_inst2_we,    mem_inst2_re;
-    logic [ABR_MEM_INST2_ADDR_W-1:0] mem_inst2_waddr, mem_inst2_raddr;
-    logic [ABR_MEM_INST2_DATA_W-1:0] mem_inst2_wdata, mem_inst2_rdata;
-
-    logic                            mem_inst3_we,    mem_inst3_re;
-    logic [ABR_MEM_INST3_ADDR_W-1:0] mem_inst3_waddr, mem_inst3_raddr;
-    logic [ABR_MEM_INST3_DATA_W-1:0] mem_inst3_wdata, mem_inst3_rdata;
-
-    logic                            sk_mem_bank0_we,    sk_mem_bank0_re;
-    logic [SK_MEM_BANK_ADDR_W-1:0]   sk_mem_bank0_waddr, sk_mem_bank0_raddr;
-    logic [SK_MEM_BANK_DATA_W-1:0]   sk_mem_bank0_wdata, sk_mem_bank0_rdata;
-
-    logic                            sk_mem_bank1_we,    sk_mem_bank1_re;
-    logic [SK_MEM_BANK_ADDR_W-1:0]   sk_mem_bank1_waddr, sk_mem_bank1_raddr;
-    logic [SK_MEM_BANK_DATA_W-1:0]   sk_mem_bank1_wdata, sk_mem_bank1_rdata;
-
-    logic                            sig_z_mem_we,    sig_z_mem_re;
-    logic [SIG_Z_MEM_ADDR_W-1:0]     sig_z_mem_waddr, sig_z_mem_raddr;
-    logic [SIG_Z_MEM_DATA_W-1:0]     sig_z_mem_wdata, sig_z_mem_rdata;
-    logic [SIG_Z_MEM_WSTROBE_W-1:0]  sig_z_mem_wstrobe;
-
-    logic                            pk_mem_we,    pk_mem_re;
-    logic [PK_MEM_ADDR_W-1:0]        pk_mem_waddr, pk_mem_raddr;
-    logic [PK_MEM_DATA_W-1:0]        pk_mem_wdata, pk_mem_rdata;
-    logic [PK_MEM_WSTROBE_W-1:0]     pk_mem_wstrobe;
-
-    // -----------------------------------------------------------------------
-    // abr_mem_fpga instantiation
-    // -----------------------------------------------------------------------
-    abr_mem_fpga mem_inst (
-        .clk_i             ( clk_i             ),
-        .abr_memory_export ( abr_memory_export )
-    );
-
-    // -----------------------------------------------------------------------
-    // abr_top instantiation
-    // -----------------------------------------------------------------------
-    abr_top_wrapper #(
-        .AHB_ADDR_WIDTH    (AHB_ADDR_W),
-        .AHB_DATA_WIDTH    (AHB_DATA_W),
-        .CLIENT_DATA_WIDTH (32)
-    ) i_abr_top_wrapper (
-        .clk                             ( clk_i                  ),
-        .rst_b                           ( abr_rst_b              ),
+  // -----------------------------------------------------------------------
+  // abr_top instantiation
+  // -----------------------------------------------------------------------
+  abr_top_wrapper #(
+    .AHB_ADDR_WIDTH    (AHB_ADDR_W),
+    .AHB_DATA_WIDTH    (AHB_DATA_W),
+    .CLIENT_DATA_WIDTH (32)
+  ) i_abr_top_wrapper (
+    .clk                             ( clk_i                  ),
+    .rst_b                           ( rst_ni                 ),
 `ifdef RV_FPGA_SCA
-        .NTT_trigger                     ( NTT_trigger            ),
-        .PWM_trigger                     ( PWM_trigger            ),
-        .PWA_trigger                     ( PWA_trigger            ),
-        .INTT_trigger                    ( INTT_trigger           ),
+    .NTT_trigger                     ( NTT_trigger            ),
+    .PWM_trigger                     ( PWM_trigger            ),
+    .PWA_trigger                     ( PWA_trigger            ),
+    .INTT_trigger                    ( INTT_trigger           ),
 `endif
-        .haddr_i                         ( haddr                  ),
-        .hwdata_i                        ( hwdata                 ),
-        .hsel_i                          ( hsel                   ),
-        .hwrite_i                        ( hwrite                 ),
-        .hready_i                        ( hready                 ),
-        .htrans_i                        ( htrans                 ),
-        .hsize_i                         ( hsize                  ),
-        .hresp_o                         ( hresp                  ),
-        .hreadyout_o                     ( hreadyout              ),
-        .hrdata_o                        ( hrdata                 ),
-        .debugUnlock_or_scan_mode_switch ('0                      ),
-        .busy_o                          ( busy_o                 ),
-        .error_intr                      ( error_intr_o           ),
-        .notif_intr                      ( notif_intr_o           ),
+    .haddr_i                         ( haddr_i                ),
+    .hwdata_i                        ( hwdata_i               ),
+    .hsel_i                          ( hsel_i                 ),
+    .hwrite_i                        ( hwrite_i               ),
+    .hready_i                        ( hready_i               ),
+    .htrans_i                        ( htrans_i               ),
+    .hsize_i                         ( hsize_i                ),
+    .hresp_o                         ( hresp_o                ),
+    .hreadyout_o                     ( hreadyout_o            ),
+    .hrdata_o                        ( hrdata_o               ),
+    .debugUnlock_or_scan_mode_switch ('0                      ),
+    .busy_o                          ( busy_o                 ),
+    .error_intr                      ( error_intr_o           ),
+    .notif_intr                      ( notif_intr_o           ),
 
-        .w1_mem_we_o                     ( w1_mem_we             ),
-        .w1_mem_waddr_o                  ( w1_mem_waddr          ),
-        .w1_mem_wdata_o                  ( w1_mem_wdata          ),
-        .w1_mem_re_o                     ( w1_mem_re             ),
-        .w1_mem_raddr_o                  ( w1_mem_raddr          ),
-        .w1_mem_rdata_i                  ( w1_mem_rdata          ),
-        .mem_inst0_bank0_we_o            ( mem_inst0_bank0_we    ),
-        .mem_inst0_bank0_waddr_o         ( mem_inst0_bank0_waddr ),
-        .mem_inst0_bank0_wdata_o         ( mem_inst0_bank0_wdata ),
-        .mem_inst0_bank0_re_o            ( mem_inst0_bank0_re    ),
-        .mem_inst0_bank0_raddr_o         ( mem_inst0_bank0_raddr ),
-        .mem_inst0_bank0_rdata_i         ( mem_inst0_bank0_rdata ),
-        .mem_inst0_bank1_we_o            ( mem_inst0_bank1_we    ),
-        .mem_inst0_bank1_waddr_o         ( mem_inst0_bank1_waddr ),
-        .mem_inst0_bank1_wdata_o         ( mem_inst0_bank1_wdata ),
-        .mem_inst0_bank1_re_o            ( mem_inst0_bank1_re    ),
-        .mem_inst0_bank1_raddr_o         ( mem_inst0_bank1_raddr ),
-        .mem_inst0_bank1_rdata_i         ( mem_inst0_bank1_rdata ),
-        .mem_inst1_we_o                  ( mem_inst1_we          ),
-        .mem_inst1_waddr_o               ( mem_inst1_waddr       ),
-        .mem_inst1_wdata_o               ( mem_inst1_wdata       ),
-        .mem_inst1_re_o                  ( mem_inst1_re          ),
-        .mem_inst1_raddr_o               ( mem_inst1_raddr       ),
-        .mem_inst1_rdata_i               ( mem_inst1_rdata       ),
-        .mem_inst2_we_o                  ( mem_inst2_we          ),
-        .mem_inst2_waddr_o               ( mem_inst2_waddr       ),
-        .mem_inst2_wdata_o               ( mem_inst2_wdata       ),
-        .mem_inst2_re_o                  ( mem_inst2_re          ),
-        .mem_inst2_raddr_o               ( mem_inst2_raddr       ),
-        .mem_inst2_rdata_i               ( mem_inst2_rdata       ),
-        .mem_inst3_we_o                  ( mem_inst3_we          ),
-        .mem_inst3_waddr_o               ( mem_inst3_waddr       ),
-        .mem_inst3_wdata_o               ( mem_inst3_wdata       ),
-        .mem_inst3_re_o                  ( mem_inst3_re          ),
-        .mem_inst3_raddr_o               ( mem_inst3_raddr       ),
-        .mem_inst3_rdata_i               ( mem_inst3_rdata       ),
-        .sk_mem_bank0_we_o               ( sk_mem_bank0_we       ),
-        .sk_mem_bank0_waddr_o            ( sk_mem_bank0_waddr    ),
-        .sk_mem_bank0_wdata_o            ( sk_mem_bank0_wdata    ),
-        .sk_mem_bank0_re_o               ( sk_mem_bank0_re       ),
-        .sk_mem_bank0_raddr_o            ( sk_mem_bank0_raddr    ),
-        .sk_mem_bank0_rdata_i            ( sk_mem_bank0_rdata    ),
-        .sk_mem_bank1_we_o               ( sk_mem_bank1_we       ),
-        .sk_mem_bank1_waddr_o            ( sk_mem_bank1_waddr    ),
-        .sk_mem_bank1_wdata_o            ( sk_mem_bank1_wdata    ),
-        .sk_mem_bank1_re_o               ( sk_mem_bank1_re       ),
-        .sk_mem_bank1_raddr_o            ( sk_mem_bank1_raddr    ),
-        .sk_mem_bank1_rdata_i            ( sk_mem_bank1_rdata    ),
-        .sig_z_mem_we_o                  ( sig_z_mem_we          ),
-        .sig_z_mem_waddr_o               ( sig_z_mem_waddr       ),
-        .sig_z_mem_wdata_o               ( sig_z_mem_wdata       ),
-        .sig_z_mem_wstrobe_o             ( sig_z_mem_wstrobe     ),
-        .sig_z_mem_re_o                  ( sig_z_mem_re          ),
-        .sig_z_mem_raddr_o               ( sig_z_mem_raddr       ),
-        .sig_z_mem_rdata_i               ( sig_z_mem_rdata       ),
-        .pk_mem_we_o                     ( pk_mem_we             ),
-        .pk_mem_waddr_o                  ( pk_mem_waddr          ),
-        .pk_mem_wdata_o                  ( pk_mem_wdata          ),
-        .pk_mem_wstrobe_o                ( pk_mem_wstrobe        ),
-        .pk_mem_re_o                     ( pk_mem_re             ),
-        .pk_mem_raddr_o                  ( pk_mem_raddr          ),
-        .pk_mem_rdata_i                  ( pk_mem_rdata          )
-    );
+    .w1_mem_we_o                     ( w1_mem_we             ),
+    .w1_mem_waddr_o                  ( w1_mem_waddr          ),
+    .w1_mem_wdata_o                  ( w1_mem_wdata          ),
+    .w1_mem_re_o                     ( w1_mem_re             ),
+    .w1_mem_raddr_o                  ( w1_mem_raddr          ),
+    .w1_mem_rdata_i                  ( w1_mem_rdata          ),
+    .mem_inst0_bank0_we_o            ( mem_inst0_bank0_we    ),
+    .mem_inst0_bank0_waddr_o         ( mem_inst0_bank0_waddr ),
+    .mem_inst0_bank0_wdata_o         ( mem_inst0_bank0_wdata ),
+    .mem_inst0_bank0_re_o            ( mem_inst0_bank0_re    ),
+    .mem_inst0_bank0_raddr_o         ( mem_inst0_bank0_raddr ),
+    .mem_inst0_bank0_rdata_i         ( mem_inst0_bank0_rdata ),
+    .mem_inst0_bank1_we_o            ( mem_inst0_bank1_we    ),
+    .mem_inst0_bank1_waddr_o         ( mem_inst0_bank1_waddr ),
+    .mem_inst0_bank1_wdata_o         ( mem_inst0_bank1_wdata ),
+    .mem_inst0_bank1_re_o            ( mem_inst0_bank1_re    ),
+    .mem_inst0_bank1_raddr_o         ( mem_inst0_bank1_raddr ),
+    .mem_inst0_bank1_rdata_i         ( mem_inst0_bank1_rdata ),
+    .mem_inst1_we_o                  ( mem_inst1_we          ),
+    .mem_inst1_waddr_o               ( mem_inst1_waddr       ),
+    .mem_inst1_wdata_o               ( mem_inst1_wdata       ),
+    .mem_inst1_re_o                  ( mem_inst1_re          ),
+    .mem_inst1_raddr_o               ( mem_inst1_raddr       ),
+    .mem_inst1_rdata_i               ( mem_inst1_rdata       ),
+    .mem_inst2_we_o                  ( mem_inst2_we          ),
+    .mem_inst2_waddr_o               ( mem_inst2_waddr       ),
+    .mem_inst2_wdata_o               ( mem_inst2_wdata       ),
+    .mem_inst2_re_o                  ( mem_inst2_re          ),
+    .mem_inst2_raddr_o               ( mem_inst2_raddr       ),
+    .mem_inst2_rdata_i               ( mem_inst2_rdata       ),
+    .mem_inst3_we_o                  ( mem_inst3_we          ),
+    .mem_inst3_waddr_o               ( mem_inst3_waddr       ),
+    .mem_inst3_wdata_o               ( mem_inst3_wdata       ),
+    .mem_inst3_re_o                  ( mem_inst3_re          ),
+    .mem_inst3_raddr_o               ( mem_inst3_raddr       ),
+    .mem_inst3_rdata_i               ( mem_inst3_rdata       ),
+    .sk_mem_bank0_we_o               ( sk_mem_bank0_we       ),
+    .sk_mem_bank0_waddr_o            ( sk_mem_bank0_waddr    ),
+    .sk_mem_bank0_wdata_o            ( sk_mem_bank0_wdata    ),
+    .sk_mem_bank0_re_o               ( sk_mem_bank0_re       ),
+    .sk_mem_bank0_raddr_o            ( sk_mem_bank0_raddr    ),
+    .sk_mem_bank0_rdata_i            ( sk_mem_bank0_rdata    ),
+    .sk_mem_bank1_we_o               ( sk_mem_bank1_we       ),
+    .sk_mem_bank1_waddr_o            ( sk_mem_bank1_waddr    ),
+    .sk_mem_bank1_wdata_o            ( sk_mem_bank1_wdata    ),
+    .sk_mem_bank1_re_o               ( sk_mem_bank1_re       ),
+    .sk_mem_bank1_raddr_o            ( sk_mem_bank1_raddr    ),
+    .sk_mem_bank1_rdata_i            ( sk_mem_bank1_rdata    ),
+    .sig_z_mem_we_o                  ( sig_z_mem_we          ),
+    .sig_z_mem_waddr_o               ( sig_z_mem_waddr       ),
+    .sig_z_mem_wdata_o               ( sig_z_mem_wdata       ),
+    .sig_z_mem_wstrobe_o             ( sig_z_mem_wstrobe     ),
+    .sig_z_mem_re_o                  ( sig_z_mem_re          ),
+    .sig_z_mem_raddr_o               ( sig_z_mem_raddr       ),
+    .sig_z_mem_rdata_i               ( sig_z_mem_rdata       ),
+    .pk_mem_we_o                     ( pk_mem_we             ),
+    .pk_mem_waddr_o                  ( pk_mem_waddr          ),
+    .pk_mem_wdata_o                  ( pk_mem_wdata          ),
+    .pk_mem_wstrobe_o                ( pk_mem_wstrobe        ),
+    .pk_mem_re_o                     ( pk_mem_re             ),
+    .pk_mem_raddr_o                  ( pk_mem_raddr          ),
+    .pk_mem_rdata_i                  ( pk_mem_rdata          )
+  );
 
-    // -----------------------------------------------------------------------
-    // abr_mem_if_pack instantiation — packs the abr_memory_export interface
-    // signals from abr_top_wrapper
-    // -----------------------------------------------------------------------
-    abr_mem_if_pack mem_pack (
-        .abr_memory_export       ( abr_memory_export      ),
-        .w1_mem_we_i             ( w1_mem_we              ),
-        .w1_mem_waddr_i          ( w1_mem_waddr           ),
-        .w1_mem_wdata_i          ( w1_mem_wdata           ),
-        .w1_mem_re_i             ( w1_mem_re              ),
-        .w1_mem_raddr_i          ( w1_mem_raddr           ),
-        .w1_mem_rdata_o          ( w1_mem_rdata           ),
-        .mem_inst0_bank0_we_i    ( mem_inst0_bank0_we     ),
-        .mem_inst0_bank0_waddr_i ( mem_inst0_bank0_waddr  ),
-        .mem_inst0_bank0_wdata_i ( mem_inst0_bank0_wdata  ),
-        .mem_inst0_bank0_re_i    ( mem_inst0_bank0_re     ),
-        .mem_inst0_bank0_raddr_i ( mem_inst0_bank0_raddr  ),
-        .mem_inst0_bank0_rdata_o ( mem_inst0_bank0_rdata  ),
-        .mem_inst0_bank1_we_i    ( mem_inst0_bank1_we     ),
-        .mem_inst0_bank1_waddr_i ( mem_inst0_bank1_waddr  ),
-        .mem_inst0_bank1_wdata_i ( mem_inst0_bank1_wdata  ),
-        .mem_inst0_bank1_re_i    ( mem_inst0_bank1_re     ),
-        .mem_inst0_bank1_raddr_i ( mem_inst0_bank1_raddr  ),
-        .mem_inst0_bank1_rdata_o ( mem_inst0_bank1_rdata  ),
-        .mem_inst1_we_i          ( mem_inst1_we           ),
-        .mem_inst1_waddr_i       ( mem_inst1_waddr        ),
-        .mem_inst1_wdata_i       ( mem_inst1_wdata        ),
-        .mem_inst1_re_i          ( mem_inst1_re           ),
-        .mem_inst1_raddr_i       ( mem_inst1_raddr        ),
-        .mem_inst1_rdata_o       ( mem_inst1_rdata        ),
-        .mem_inst2_we_i          ( mem_inst2_we           ),
-        .mem_inst2_waddr_i       ( mem_inst2_waddr        ),
-        .mem_inst2_wdata_i       ( mem_inst2_wdata        ),
-        .mem_inst2_re_i          ( mem_inst2_re           ),
-        .mem_inst2_raddr_i       ( mem_inst2_raddr        ),
-        .mem_inst2_rdata_o       ( mem_inst2_rdata        ),
-        .mem_inst3_we_i          ( mem_inst3_we           ),
-        .mem_inst3_waddr_i       ( mem_inst3_waddr        ),
-        .mem_inst3_wdata_i       ( mem_inst3_wdata        ),
-        .mem_inst3_re_i          ( mem_inst3_re           ),
-        .mem_inst3_raddr_i       ( mem_inst3_raddr        ),
-        .mem_inst3_rdata_o       ( mem_inst3_rdata        ),
-        .sk_mem_bank0_we_i       ( sk_mem_bank0_we        ),
-        .sk_mem_bank0_waddr_i    ( sk_mem_bank0_waddr     ),
-        .sk_mem_bank0_wdata_i    ( sk_mem_bank0_wdata     ),
-        .sk_mem_bank0_re_i       ( sk_mem_bank0_re        ),
-        .sk_mem_bank0_raddr_i    ( sk_mem_bank0_raddr     ),
-        .sk_mem_bank0_rdata_o    ( sk_mem_bank0_rdata     ),
-        .sk_mem_bank1_we_i       ( sk_mem_bank1_we        ),
-        .sk_mem_bank1_waddr_i    ( sk_mem_bank1_waddr     ),
-        .sk_mem_bank1_wdata_i    ( sk_mem_bank1_wdata     ),
-        .sk_mem_bank1_re_i       ( sk_mem_bank1_re        ),
-        .sk_mem_bank1_raddr_i    ( sk_mem_bank1_raddr     ),
-        .sk_mem_bank1_rdata_o    ( sk_mem_bank1_rdata     ),
-        .sig_z_mem_we_i          ( sig_z_mem_we           ),
-        .sig_z_mem_waddr_i       ( sig_z_mem_waddr        ),
-        .sig_z_mem_wdata_i       ( sig_z_mem_wdata        ),
-        .sig_z_mem_wstrobe_i     ( sig_z_mem_wstrobe      ),
-        .sig_z_mem_re_i          ( sig_z_mem_re           ),
-        .sig_z_mem_raddr_i       ( sig_z_mem_raddr        ),
-        .sig_z_mem_rdata_o       ( sig_z_mem_rdata        ),
-        .pk_mem_we_i             ( pk_mem_we              ),
-        .pk_mem_waddr_i          ( pk_mem_waddr           ),
-        .pk_mem_wdata_i          ( pk_mem_wdata           ),
-        .pk_mem_wstrobe_i        ( pk_mem_wstrobe         ),
-        .pk_mem_re_i             ( pk_mem_re              ),
-        .pk_mem_raddr_i          ( pk_mem_raddr           ),
-        .pk_mem_rdata_o          ( pk_mem_rdata           )
-    );
-
-    // -----------------------------------------------------------------------
-    // abr_ahb_mgr instantiation (64-bit data width)
-    // -----------------------------------------------------------------------
-    abr_ahb_mgr #(
-        .AHB_ADDR_WIDTH (AHB_ADDR_W),
-        .AHB_DATA_WIDTH (AHB_DATA_W)
-    ) ahb_mgr (
-        .clk_i        ( clk_i     ),
-        .rst_ni       ( rst_ni    ),
-        .req_i        ( mgr_req   ),
-        .write_i      ( mgr_write ),
-        .size_i       ( mgr_size  ),
-        .addr_i       ( mgr_addr  ),
-        .wdata_i      ( mgr_wdata ),
-        .ready_o      ( mgr_ready ),
-        .done_o       ( mgr_done  ),
-        .rdata_o      ( mgr_rdata ),
-        .error_o      ( mgr_error ),
-        .haddr_o      ( haddr     ),
-        .hwdata_o     ( hwdata    ),
-        .hsel_o       ( hsel      ),
-        .hwrite_o     ( hwrite    ),
-        .hready_o     ( hready    ),
-        .htrans_o     ( htrans    ),
-        .hsize_o      ( hsize     ),
-        .hresp_i      ( hresp     ),
-        .hreadyout_i  ( hreadyout ),
-        .hrdata_i     ( hrdata    )
-    );
-
-    // -----------------------------------------------------------------------
-    // FSM
-    // -----------------------------------------------------------------------
-    typedef enum logic [3:0] {
-        ST_RESET,           // drive abr_rst_b low
-        ST_WAIT_FOR_START,  // wait for start condition (e.g. ext trigger)
-        ST_POLL_RDY_ISSUE,  // issue STATUS read to check READY
-        ST_POLL_RDY_WAIT,   // wait for STATUS read to complete
-        ST_WRITE_ISSUE,     // issue one input-register write
-        ST_WRITE_WAIT,      // wait for write to complete, advance counters
-        ST_CTRL_ISSUE,      // issue CTRL write to start operation
-        ST_CTRL_WAIT,       // wait for CTRL write to complete
-        ST_POLL_DONE_ISSUE, // issue STATUS read to check completion
-        ST_POLL_DONE_WAIT,  // wait for STATUS read to complete
-        ST_READ_ISSUE,      // issue one output-register read
-        ST_READ_WAIT,       // wait for read to complete, store result
-        ST_DONE,
-        ST_ERROR
-    } state_e;
-
-    state_e                      state_q, state_d;
-    logic [RESET_CNT_W-1:0]      reset_cnt_q;
-    logic [DESC_IDX_W-1:0]       desc_idx_q;
-    logic [WORD_IDX_W-1:0]       word_idx_q;
-    logic [31:0]                 status_lat_q; // latched STATUS word
-
-    // Read-phase counters
-    logic [DESC_IDX_W-1:0]       rd_desc_idx_q;
-    logic [WORD_IDX_W-1:0]       rd_word_idx_q;
-
-    // -----------------------------------------------------------------------
-    // Result registers — written during the read phase; inspect after ST_DONE.
-    // Only the arrays relevant to the compiled OPERATION are driven.
-    // Not synthesised to on-device storage to avoid huge resource requirements.
-    // -----------------------------------------------------------------------
-
-`ifndef SYNTHESIS
-    logic [31:0] result_pk  [0:PUBKEY_WORDS-1];
-    logic [31:0] result_sk  [0:PRIVKEY_WORDS-1];
-    logic [31:0] result_sig [0:SIGNATURE_WORDS-1];
-    logic [31:0] result_vfy [0:VERIFY_RES_WORDS-1];
-`endif
-
-    // -----------------------------------------------------------------------
-    // Data-lookup: returns the 32-bit payload for (desc_idx, word_idx).
-    // OPERATION is a compile-time constant so the case reduces to one branch.
-    // -----------------------------------------------------------------------
-    function automatic logic [31:0] get_input_data(
-        input int unsigned di,
-        input int unsigned wi
-    );
-        unique case (OPERATION)
-            OP_KEYGEN: return keygen_data(di, wi);
-            OP_SIGN:   return sign_data(di, wi);
-            OP_VERIFY: return verify_data(di, wi);
-            OP_KGSIGN: return kgsign_data(di, wi);
-            default:   return '0;
-        endcase
-    endfunction
-
-    // -----------------------------------------------------------------------
-    // AHB 64-bit lane helpers
-    //   addr[2]=0 → lower 32-bit lane  [31:0]
-    //   addr[2]=1 → upper 32-bit lane  [63:32]
-    // -----------------------------------------------------------------------
-    function automatic logic [AHB_DATA_W-1:0] pack_wdata(
-        input logic [31:0] addr,
-        input logic [31:0] data
-    );
-        return addr[2] ? {data, 32'h0} : {{32'h0}, data};
-    endfunction
-
-    function automatic logic [31:0] unpack_rdata(
-        input logic [31:0]         addr,
-        input logic [AHB_DATA_W-1:0] rdata
-    );
-        return addr[2] ? rdata[63:32] : rdata[31:0];
-    endfunction
-
-    // -----------------------------------------------------------------------
-    // Current-write / current-read address helpers
-    // -----------------------------------------------------------------------
-    logic [31:0] cur_wr_addr;
-    assign cur_wr_addr = DESC[desc_idx_q].base_addr + {19'h0, word_idx_q, 2'b00};
-
-    logic [31:0] cur_rd_addr;
-    assign cur_rd_addr = RD_DESC[rd_desc_idx_q].base_addr + {19'h0, rd_word_idx_q, 2'b00};
-
-    // -----------------------------------------------------------------------
-    // FSM sequential
-    // -----------------------------------------------------------------------
-    always_ff @(posedge clk_i or negedge rst_ni) begin
-        if (!rst_ni) begin
-            state_q      <= ST_RESET;
-            reset_cnt_q  <= RESET_CNT_W'(RESET_CYCLES);
-            desc_idx_q   <= '0;
-            word_idx_q   <= '0;
-            rd_desc_idx_q <= '0;
-            rd_word_idx_q <= '0;
-            status_lat_q <= '0;
-        end else begin
-            state_q <= state_d;
-
-            unique case (state_q)
-
-                ST_RESET: begin
-                    if (reset_cnt_q != '0) begin
-                        reset_cnt_q <= reset_cnt_q - 1'b1;
-                    end else begin
-                        // reset counter
-                        reset_cnt_q <= RESET_CNT_W'(RESET_CYCLES);
-                    end
-                end
-
-                ST_POLL_RDY_WAIT: begin
-                    if (mgr_done)
-                        status_lat_q <= unpack_rdata(ADDR_MLDSA_STATUS, mgr_rdata);
-                end
-
-                ST_WRITE_WAIT: begin
-                    if (mgr_done) begin
-                        if (word_idx_q == WORD_IDX_W'(DESC[desc_idx_q].num_words - 1)) begin
-                            word_idx_q <= '0;
-                            desc_idx_q <= desc_idx_q + 1'b1;
-                        end else begin
-                            word_idx_q <= word_idx_q + 1'b1;
-                        end
-                    end
-                end
-
-                ST_POLL_DONE_WAIT: begin
-                    if (mgr_done)
-                        status_lat_q <= unpack_rdata(ADDR_MLDSA_STATUS, mgr_rdata);
-                end
-
-                ST_READ_WAIT: begin
-
-                    if (mgr_done && !mgr_error) begin
-                        
-// Do not synthesise capture logic as storage requirements on the device would be HUGE
-`ifndef SYNTHESIS
-                        // Route read data to the appropriate result array.
-                        // OPERATION is a compile-time constant so only one
-                        // branch survives elaboration.
-                        unique case (OPERATION)
-                            OP_KEYGEN: begin
-                                if (rd_desc_idx_q == 0)
-                                    result_pk[rd_word_idx_q]  <= unpack_rdata(cur_rd_addr, mgr_rdata);
-                                else
-                                    result_sk[rd_word_idx_q]  <= unpack_rdata(cur_rd_addr, mgr_rdata);
-                            end
-                            OP_SIGN: begin
-                                result_sig[rd_word_idx_q] <= unpack_rdata(cur_rd_addr, mgr_rdata);
-                            end
-                            OP_VERIFY: begin
-                                result_vfy[rd_word_idx_q] <= unpack_rdata(cur_rd_addr, mgr_rdata);
-                            end
-                            OP_KGSIGN: begin
-                                if (rd_desc_idx_q == 0)
-                                    result_pk[rd_word_idx_q]  <= unpack_rdata(cur_rd_addr, mgr_rdata);
-                                else if (rd_desc_idx_q == 1)
-                                    result_sk[rd_word_idx_q]  <= unpack_rdata(cur_rd_addr, mgr_rdata);
-                                else
-                                    result_sig[rd_word_idx_q] <= unpack_rdata(cur_rd_addr, mgr_rdata);
-                            end
-                        endcase
-`endif
-
-                        // Advance read counters
-                        if (rd_word_idx_q == WORD_IDX_W'(RD_DESC[rd_desc_idx_q].num_words - 1)) begin
-                            rd_word_idx_q <= '0;
-                            rd_desc_idx_q <= rd_desc_idx_q + 1'b1;
-                        end else begin
-                            rd_word_idx_q <= rd_word_idx_q + 1'b1;
-                        end
-                    end
-                end
-
-                default: ;
-
-            endcase
-        end
-    end
-
-    // -----------------------------------------------------------------------
-    // FSM combinational — next-state and output logic
-    // -----------------------------------------------------------------------
-    always_comb begin
-        state_d    = state_q;
-        abr_rst_b  = 1'b1;
-        mgr_req    = 1'b0;
-        mgr_write  = 1'b0;
-        mgr_size   = 3'b010;     // HSIZE word (32-bit)
-        mgr_addr   = '0;
-        mgr_wdata  = '0;
-        done_o     = 1'b0;
-        error_o    = 1'b0;
-
-        unique case (state_q)
-
-            // -----------------------------------------------------------------
-            ST_RESET: begin
-                abr_rst_b = 1'b0;
-                if (reset_cnt_q == '0)
-                    state_d = ST_WAIT_FOR_START;
-            end
-
-            // -----------------------------------------------------------------
-            // Wait for external ready condition (e.g. ext trigger) before 
-            // starting the operation.
-            // -----------------------------------------------------------------
-            ST_WAIT_FOR_START: begin
-                if (ext_trigger_i) begin
-                    state_d = ST_POLL_RDY_ISSUE;
-                end
-            end
-
-            // -----------------------------------------------------------------
-            // Poll STATUS — wait for READY
-            // -----------------------------------------------------------------
-            ST_POLL_RDY_ISSUE: begin
-                if (mgr_ready) begin
-                    mgr_req   = 1'b1;
-                    mgr_write = 1'b0;
-                    mgr_addr  = ADDR_MLDSA_STATUS;
-                    state_d   = ST_POLL_RDY_WAIT;
-                end
-            end
-
-            ST_POLL_RDY_WAIT: begin
-                if (mgr_done) begin
-                    if (mgr_error)
-                        state_d = ST_ERROR;
-                    else if (status_lat_q & STATUS_READY)
-                        state_d = ST_WRITE_ISSUE;
-                    else
-                        state_d = ST_POLL_RDY_ISSUE;  // not yet ready, re-poll
-                end
-            end
-
-            // -----------------------------------------------------------------
-            // Write all input descriptors word-by-word
-            // -----------------------------------------------------------------
-            ST_WRITE_ISSUE: begin
-                // All descriptors written — proceed to CTRL
-                if (desc_idx_q == DESC_IDX_W'(NUM_DESC)) begin
-                    state_d = ST_CTRL_ISSUE;
-                end else if (mgr_ready) begin
-                    mgr_req   = 1'b1;
-                    mgr_write = 1'b1;
-                    mgr_addr  = cur_wr_addr;
-                    mgr_wdata = pack_wdata(
-                        cur_wr_addr,
-                        get_input_data(int'(desc_idx_q), int'(word_idx_q))
-                    );
-                    state_d = ST_WRITE_WAIT;
-                end
-            end
-
-            ST_WRITE_WAIT: begin
-                if (mgr_done) begin
-                    if (mgr_error)
-                        state_d = ST_ERROR;
-                    else
-                        state_d = ST_WRITE_ISSUE;
-                end
-            end
-
-            // -----------------------------------------------------------------
-            // Write CTRL to start the operation
-            // -----------------------------------------------------------------
-            ST_CTRL_ISSUE: begin
-                if (mgr_ready) begin
-                    mgr_req   = 1'b1;
-                    mgr_write = 1'b1;
-                    mgr_addr  = ADDR_MLDSA_CTRL;
-                    mgr_wdata = pack_wdata(ADDR_MLDSA_CTRL, OP_CTRL);
-                    state_d   = ST_CTRL_WAIT;
-                end
-            end
-
-            ST_CTRL_WAIT: begin
-                if (mgr_done) begin
-                    if (mgr_error)
-                        state_d = ST_ERROR;
-                    else
-                        state_d = ST_POLL_DONE_ISSUE;
-                end
-            end
-
-            // -----------------------------------------------------------------
-            // Poll STATUS — wait for READY+VALID (operation complete)
-            // -----------------------------------------------------------------
-            ST_POLL_DONE_ISSUE: begin
-                if (mgr_ready) begin
-                    mgr_req   = 1'b1;
-                    mgr_write = 1'b0;
-                    mgr_addr  = ADDR_MLDSA_STATUS;
-                    state_d   = ST_POLL_DONE_WAIT;
-                end
-            end
-
-            ST_POLL_DONE_WAIT: begin
-                if (mgr_done) begin
-                    if (mgr_error || (status_lat_q & STATUS_ERROR))
-                        state_d = ST_ERROR;
-                    else if ((status_lat_q & (STATUS_READY | STATUS_VALID)) == 32'd2) // ToDo: Find out why this isn't the same as the spec
-                        state_d = ST_READ_ISSUE;
-                    else
-                        state_d = ST_POLL_DONE_ISSUE;
-                end
-            end
-
-            // -----------------------------------------------------------------
-            // Read back output registers word-by-word into result_* arrays
-            // -----------------------------------------------------------------
-            ST_READ_ISSUE: begin
-                // All output descriptors read — operation fully complete
-                if (rd_desc_idx_q == DESC_IDX_W'(NUM_RD_DESC)) begin
-                    state_d = ST_DONE;
-                end else if (mgr_ready) begin
-                    mgr_req   = 1'b1;
-                    mgr_write = 1'b0;
-                    mgr_addr  = cur_rd_addr;
-                    state_d   = ST_READ_WAIT;
-                end
-            end
-
-            ST_READ_WAIT: begin
-                if (mgr_done) begin
-                    if (mgr_error)
-                        state_d = ST_ERROR;
-                    else
-                        state_d = ST_READ_ISSUE;
-                end
-            end
-
-            // -----------------------------------------------------------------
-            // Operation complete, assert done_o. Remain in this state until 
-            // reset or a new external trigger arrives.
-            // -----------------------------------------------------------------
-            ST_DONE: begin
-                done_o    = 1'b1;
-                if (busy_o == 1'b0) begin
-                    state_d = ST_RESET;
-                end
-            end
-
-            ST_ERROR: begin
-                error_o = 1'b1;
-            end
-
-            default: ;
-
-        endcase
-    end
+  // -----------------------------------------------------------------------
+  // abr_mem_if_pack instantiation — packs the abr_memory_export interface
+  // signals from abr_top_wrapper
+  // -----------------------------------------------------------------------
+  abr_mem_if_pack mem_pack (
+      .abr_memory_export       ( abr_memory_export      ),
+      .w1_mem_we_i             ( w1_mem_we              ),
+      .w1_mem_waddr_i          ( w1_mem_waddr           ),
+      .w1_mem_wdata_i          ( w1_mem_wdata           ),
+      .w1_mem_re_i             ( w1_mem_re              ),
+      .w1_mem_raddr_i          ( w1_mem_raddr           ),
+      .w1_mem_rdata_o          ( w1_mem_rdata           ),
+      .mem_inst0_bank0_we_i    ( mem_inst0_bank0_we     ),
+      .mem_inst0_bank0_waddr_i ( mem_inst0_bank0_waddr  ),
+      .mem_inst0_bank0_wdata_i ( mem_inst0_bank0_wdata  ),
+      .mem_inst0_bank0_re_i    ( mem_inst0_bank0_re     ),
+      .mem_inst0_bank0_raddr_i ( mem_inst0_bank0_raddr  ),
+      .mem_inst0_bank0_rdata_o ( mem_inst0_bank0_rdata  ),
+      .mem_inst0_bank1_we_i    ( mem_inst0_bank1_we     ),
+      .mem_inst0_bank1_waddr_i ( mem_inst0_bank1_waddr  ),
+      .mem_inst0_bank1_wdata_i ( mem_inst0_bank1_wdata  ),
+      .mem_inst0_bank1_re_i    ( mem_inst0_bank1_re     ),
+      .mem_inst0_bank1_raddr_i ( mem_inst0_bank1_raddr  ),
+      .mem_inst0_bank1_rdata_o ( mem_inst0_bank1_rdata  ),
+      .mem_inst1_we_i          ( mem_inst1_we           ),
+      .mem_inst1_waddr_i       ( mem_inst1_waddr        ),
+      .mem_inst1_wdata_i       ( mem_inst1_wdata        ),
+      .mem_inst1_re_i          ( mem_inst1_re           ),
+      .mem_inst1_raddr_i       ( mem_inst1_raddr        ),
+      .mem_inst1_rdata_o       ( mem_inst1_rdata        ),
+      .mem_inst2_we_i          ( mem_inst2_we           ),
+      .mem_inst2_waddr_i       ( mem_inst2_waddr        ),
+      .mem_inst2_wdata_i       ( mem_inst2_wdata        ),
+      .mem_inst2_re_i          ( mem_inst2_re           ),
+      .mem_inst2_raddr_i       ( mem_inst2_raddr        ),
+      .mem_inst2_rdata_o       ( mem_inst2_rdata        ),
+      .mem_inst3_we_i          ( mem_inst3_we           ),
+      .mem_inst3_waddr_i       ( mem_inst3_waddr        ),
+      .mem_inst3_wdata_i       ( mem_inst3_wdata        ),
+      .mem_inst3_re_i          ( mem_inst3_re           ),
+      .mem_inst3_raddr_i       ( mem_inst3_raddr        ),
+      .mem_inst3_rdata_o       ( mem_inst3_rdata        ),
+      .sk_mem_bank0_we_i       ( sk_mem_bank0_we        ),
+      .sk_mem_bank0_waddr_i    ( sk_mem_bank0_waddr     ),
+      .sk_mem_bank0_wdata_i    ( sk_mem_bank0_wdata     ),
+      .sk_mem_bank0_re_i       ( sk_mem_bank0_re        ),
+      .sk_mem_bank0_raddr_i    ( sk_mem_bank0_raddr     ),
+      .sk_mem_bank0_rdata_o    ( sk_mem_bank0_rdata     ),
+      .sk_mem_bank1_we_i       ( sk_mem_bank1_we        ),
+      .sk_mem_bank1_waddr_i    ( sk_mem_bank1_waddr     ),
+      .sk_mem_bank1_wdata_i    ( sk_mem_bank1_wdata     ),
+      .sk_mem_bank1_re_i       ( sk_mem_bank1_re        ),
+      .sk_mem_bank1_raddr_i    ( sk_mem_bank1_raddr     ),
+      .sk_mem_bank1_rdata_o    ( sk_mem_bank1_rdata     ),
+      .sig_z_mem_we_i          ( sig_z_mem_we           ),
+      .sig_z_mem_waddr_i       ( sig_z_mem_waddr        ),
+      .sig_z_mem_wdata_i       ( sig_z_mem_wdata        ),
+      .sig_z_mem_wstrobe_i     ( sig_z_mem_wstrobe      ),
+      .sig_z_mem_re_i          ( sig_z_mem_re           ),
+      .sig_z_mem_raddr_i       ( sig_z_mem_raddr        ),
+      .sig_z_mem_rdata_o       ( sig_z_mem_rdata        ),
+      .pk_mem_we_i             ( pk_mem_we              ),
+      .pk_mem_waddr_i          ( pk_mem_waddr           ),
+      .pk_mem_wdata_i          ( pk_mem_wdata           ),
+      .pk_mem_wstrobe_i        ( pk_mem_wstrobe         ),
+      .pk_mem_re_i             ( pk_mem_re              ),
+      .pk_mem_raddr_i          ( pk_mem_raddr           ),
+      .pk_mem_rdata_o          ( pk_mem_rdata           )
+  );
 
 endmodule

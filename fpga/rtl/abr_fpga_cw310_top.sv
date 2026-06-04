@@ -32,13 +32,11 @@ module abr_fpga_cw310_top
 
   timeunit 1ns/1ps;
 
-  `ifndef ABR_OP
-    `define ABR_OP OP_KGSIGN
-  `endif
+  /* Constants and type definitions */
 
   localparam integer unsigned ResetSyncStages = 3;
-  localparam op_e             Operation       = `ABR_OP;
-  localparam integer unsigned ResetCycles     = 16; 
+
+  /* Signals and Logic */
 
   // Internal signal for reset
   logic reset_ext;
@@ -46,14 +44,6 @@ module abr_fpga_cw310_top
   logic rst_n;
   logic clk_int;
 
-  logic ext_trigger;
-  logic reg_usr_led;
-
-  (* DONT_TOUCH = "yes" *) logic done_d, done_q;
-  (* DONT_TOUCH = "yes" *) logic error_d, error_q;
-  (* DONT_TOUCH = "yes" *) logic busy_d, busy_q;
-  (* DONT_TOUCH = "yes" *) logic error_intr_d, error_intr_q;
-  (* DONT_TOUCH = "yes" *) logic notif_intr_d, notif_intr_q;
 
   // Debug counter for LED toggling
   logic [25:0] debug_counter;
@@ -62,23 +52,12 @@ module abr_fpga_cw310_top
 
   // Generate active-high reset signal
   assign reset_ext = ~USRSW0;
-  
-  assign USRLED[0] = reset_int;         // Drive LED with PLL lock for debugging
-  assign USRLED[1] = debug_counter[25]; // Toggle LED at ~1Hz
-  assign USRLED[2] = done_q;            // Drive LED with done status for debugging
-  assign USRLED[3] = error_q;           // Drive LED with error status for debugging
-  assign USRLED[4] = busy_q;            // Drive LED with busy status for debugging
-  assign USRLED[5] = reg_usr_led;       // LED controlled by register for testing
-  
   assign rst_n     = resetn_sync_ff[ResetSyncStages-1];
-  assign CWIO_IO4  = busy_q;            // Trigger output for scope (goes high when busy)
-  
-  ip_top_clk top_clk (
-    .clk_in1  ( PLL_CLK_1  ), // input  external clock in
-    .clk_out  ( clk_int ), // output clk_out
-    .reset    ( reset_ext  ), // input  reset
-    .clk_lock ( reset_int  )  // output clk_lock    
-  );
+
+
+  // ---------------------------------------------------------------------------
+  // Reset Synchroniser
+  // ---------------------------------------------------------------------------
 
   // n-stage reset synchronizer
   always_ff @(posedge clk_int or posedge reset_ext) begin
@@ -89,59 +68,9 @@ module abr_fpga_cw310_top
     end
   end
 
-  // instantiate the design
-  abr_fpga_top #(  
-    .OPERATION     ( Operation   ),
-    .RESET_CYCLES  ( ResetCycles )
-  ) i_abr_fpga_top (
-    .clk_i         ( clk_int     ),
-    .rst_ni        ( rst_n       ),      // active-low board/PLL reset
-
-`ifdef RV_FPGA_SCA   // Warning: This doesn't work right now...
-    .NTT_trigger   ( /* NC */    ),
-    .PWM_trigger   ( /* NC */    ),
-    .PWA_trigger   ( /* NC */    ),
-    .INTT_trigger  ( /* NC */    ),
-`endif
-
-    .ext_trigger_i ( ext_trigger ), // e.g. external trigger to start the operation; usage depends on the platform
-
-    .done_o        ( done_d      ), // pulses high for one cycle when operation completes
-    .error_o       ( error_d     ), // asserted and held on STATUS error
-
-    // abr_top status pass-through
-    .busy_o        ( busy_d       ),
-    .error_intr_o  ( error_intr_d ),
-    .notif_intr_o  ( notif_intr_d )
-  );
-
-
-  // register status signals from abr_top
-  always_ff @(posedge clk_int or negedge rst_n) begin
-    if (!rst_n) begin
-      done_q        <= 1'b0;
-      error_q       <= 1'b0;
-      busy_q        <= 1'b0;
-      error_intr_q  <= 1'b0;
-      notif_intr_q  <= 1'b0;
-    end else begin
-      // latch status signal
-      if (done_d) begin
-        done_q <= 1'b1;
-      end
-      
-      if (error_d) begin
-        error_q <= 1'b1;
-      end
-
-      busy_q        <= busy_d;
-
-      error_intr_q  <= error_intr_d;
-      notif_intr_q  <= notif_intr_d;
-    end
-  end
-
-  
+  // ---------------------------------------------------------------------------
+  // Debug Counter
+  // ---------------------------------------------------------------------------
   always_ff @(posedge clk_int or negedge rst_n) begin
     if (!rst_n) begin
       debug_counter <= 0;
@@ -150,14 +79,11 @@ module abr_fpga_cw310_top
     end
   end
 
-/******************************************************************************/
-/* CW LOGIC INSTANCES                                                         */
-/******************************************************************************/
-
-  logic       usb_reset;
-  logic       usb_clk_buf;
-  logic       isout;
-  logic [7:0] usb_dout;
+  
+  logic                                 usb_reset;
+  logic                                 usb_clk_buf;
+  logic                                 isout;
+  logic [                          7:0] usb_dout;
 
   logic [pADDR_WIDTH-pBYTECNT_SIZE-1:0] reg_address;
   logic [            pBYTECNT_SIZE-1:0] reg_bytecnt;
@@ -168,81 +94,259 @@ module abr_fpga_cw310_top
   logic                                 reg_write;
   logic [                          4:0] clk_settings;
   logic                                 crypt_clk;
-  logic                                 crypt_ready;
-  logic                                 crypt_done;
 
   assign usb_reset    = !reset_int; // Use inverted synchronized reset for USB logic
   assign USB_D        = isout? usb_dout : 8'bZ;
   assign clk_settings = '0; // Use DIP switches for clock settings
-  assign crypt_ready  = 1'b1; // Tie ready high for now
-  assign crypt_done   = !busy_q; // Done when not busy
 
-  cw310_usb_reg_fe #(
-    .pBYTECNT_SIZE           ( pBYTECNT_SIZE    ),
-    .pADDR_WIDTH             ( pADDR_WIDTH      )
-  ) i_cw_usb_reg_fe (
-    .rst                     ( usb_reset        ),
-    .usb_clk                 ( usb_clk_buf      ), 
-    .usb_din                 ( USB_D            ), 
-    .usb_dout                ( usb_dout         ), 
-    .usb_rdn                 ( USB_nRD          ), 
-    .usb_wrn                 ( USB_nWR          ),
-    .usb_cen                 ( USB_nCE          ),
-    .usb_alen                ( 1'b0             ),
-    .usb_addr                ( USB_A            ),
-    .usb_isout               ( isout            ), 
-    .reg_address             ( reg_address      ), 
-    .reg_bytecnt             ( reg_bytecnt      ), 
-    .reg_datao               ( write_data       ), 
-    .reg_datai               ( read_data        ),
-    .reg_read                ( reg_read         ), 
-    .reg_write               ( reg_write        ), 
-    .reg_addrvalid           ( reg_addrvalid    )
+  // ---------------------------------------------------------------------------
+  // Clock Generation and Selection
+  // ---------------------------------------------------------------------------
+  ip_top_clk top_clk (
+    .clk_in1  ( PLL_CLK_1  ), // input  external clock in
+    .clk_out  ( clk_int    ), // output clk_out
+    .reset    ( reset_ext  ), // input  reset
+    .clk_lock ( reset_int  )  // output clk_lock    
+  );
+  
+  clocks i_cw_clocks (
+    .usb_clk     ( usb_clk      ),
+    .usb_clk_buf ( usb_clk_buf  ),
+    .I_j16_sel   ( USRDIP0      ),
+    .I_k16_sel   ( USRDIP1      ),
+    .I_clock_reg ( clk_settings ),
+    .I_cw_clkin  ( '0           ), // unused, we only use top_clk
+    .I_pll_clk1  ( clk_int      ),
+    .O_cw_clkout ( CWIO_HS1     ),
+    .O_cryptoclk ( crypt_clk    )
   );
 
-  cw310_reg_aes #(
-       .pBYTECNT_SIZE        ( pBYTECNT_SIZE ),
-       .pADDR_WIDTH          ( pADDR_WIDTH   ),
-       .pPT_WIDTH            ( pPT_WIDTH     ),
-       .pCT_WIDTH            ( pCT_WIDTH     ),
-       .pKEY_WIDTH           ( pKEY_WIDTH    )
+  // ---------------------------------------------------------------------------
+  // USB Front-End to Register Interface
+  // ---------------------------------------------------------------------------
+  cw310_usb_reg_fe #(
+    .pBYTECNT_SIZE ( pBYTECNT_SIZE    ),
+    .pADDR_WIDTH   ( pADDR_WIDTH      )
+  ) i_cw_usb_reg_fe (
+    .rst           ( usb_reset        ),
+    .usb_clk       ( usb_clk_buf      ), 
+    .usb_din       ( USB_D            ), 
+    .usb_dout      ( usb_dout         ), 
+    .usb_rdn       ( USB_nRD          ), 
+    .usb_wrn       ( USB_nWR          ),
+    .usb_cen       ( USB_nCE          ),
+    .usb_alen      ( 1'b0             ),
+    .usb_addr      ( USB_A            ),
+    .usb_isout     ( isout            ), 
+    .reg_address   ( reg_address      ), 
+    .reg_bytecnt   ( reg_bytecnt      ), 
+    .reg_datao     ( write_data       ), 
+    .reg_datai     ( read_data        ),
+    .reg_read      ( reg_read         ), 
+    .reg_write     ( reg_write        ), 
+    .reg_addrvalid ( reg_addrvalid    )
+  );
+
+  logic [ pADDR_WIDTH-1:0] buff_addr_a;
+  logic [A_DATA_WIDTH-1:0] buff_wdata_a;
+  logic                    buff_we_a;
+  logic [A_DATA_WIDTH-1:0] buff_rdata_a;
+
+  abr_cw310_reg #(
+    .pBYTECNT_SIZE  ( pBYTECNT_SIZE ),
+    .pADDR_WIDTH    ( pADDR_WIDTH   )
   ) i_cw_reg_abr (
-       .reset_i              ( usb_reset                                  ),
-       .crypto_clk           ( crypt_clk                                  ),
-       .usb_clk              ( usb_clk_buf                                ), 
-       .reg_address          ( reg_address[pADDR_WIDTH-pBYTECNT_SIZE-1:0] ), 
-       .reg_bytecnt          ( reg_bytecnt                                ), 
-       .read_data            ( read_data                                  ), 
-       .write_data           ( write_data                                 ),
-       .reg_read             ( reg_read                                   ), 
-       .reg_write            ( reg_write                                  ), 
-       .reg_addrvalid        ( reg_addrvalid                              ),
+    // USB register interface
+    .reset_i        ( usb_reset     ),
+    .usb_clk        ( usb_clk_buf   ),
+    .reg_address    ( reg_address   ),
+    .reg_bytecnt    ( reg_bytecnt   ),
+    .read_data      ( read_data     ),
+    .write_data     ( write_data    ),
+    .reg_read       ( reg_read      ),
+    .reg_write      ( reg_write     ),
+    .reg_addrvalid  ( reg_addrvalid ),
+    // Unconnected — to be wired to DUT logic
+    .dut_ctrl0_o    (               ),
+    .dut_ctrl1_o    (               ),
+    .abr_instr_o    (               ),
+    .dut_stat0_i    ( '0            ),
+    .dut_stat1_i    ( '0            ),
+    .buf_addr_o     ( buff_addr_a   ),
+    .buf_wdata_o    ( buff_wdata_a  ),
+    .buf_wr_o       ( buff_we_a     ),
+    .buf_rdata_i    ( buff_rdata_a  )
+  );
 
-       .exttrigger_in        ( usb_trigger                                ),
+  // ---------------------------------------------------------------------------
+  // ABR Data Buffer
+  // ---------------------------------------------------------------------------
 
-       .I_textout            ( '0                                         ),               // unused
-       .I_cipherout          ( '0                                         ),
-       .I_ready              ( crypt_ready                                ),
-       .I_done               ( crypt_done                                 ),
-       .I_busy               ( busy_q                                     ),
-       .O_clksettings        ( /* NC */                                   ),
-       .O_user_led           ( reg_usr_led                                ),
-       .O_key                ( /* NC */                                   ),
-       .O_textin             ( /* NC */                                   ),
-       .O_cipherin           ( /* NC */                                   ),                     // unused
-       .O_start              ( ext_trigger                                )
-    );   
+  logic [B_ADDR_WIDTH-1:0] buff_addr_b;
+  logic [B_DATA_WIDTH-1:0] buff_wdata_b;
+  logic [  B_WE_WIDTH-1:0] buff_we_b;
+  logic [B_DATA_WIDTH-1:0] buff_rdata_b;
 
-    clocks i_cw_clocks (
-       .usb_clk              ( usb_clk      ),
-       .usb_clk_buf          ( usb_clk_buf  ),
-       .I_j16_sel            ( USRDIP0      ),
-       .I_k16_sel            ( USRDIP1      ),
-       .I_clock_reg          ( clk_settings ),
-       .I_cw_clkin           ( '0           ), // unused, we only use top_clk
-       .I_pll_clk1           ( clk_int      ),
-       .O_cw_clkout          ( CWIO_HS1     ),
-       .O_cryptoclk          ( crypt_clk    )
-    );
+  ram_array i_ram_array (
+    .clk_a_i   ( usb_clk_buf   ),
+    .addr_a_i  ( buff_addr_a   ),
+    .wdata_a_i ( buff_wdata_a  ),
+    .we_a_i    ( buff_we_a     ),
+    .rdata_a_o ( buff_rdata_a  ),
+
+    .clk_b_i   ( crypt_clk     ),
+    .addr_b_i  ( buff_addr_b   ),
+    .wdata_b_i ( buff_wdata_b  ),
+    .we_b_i    ( buff_we_b     ),
+    .rdata_b_o ( buff_rdata_b  )
+  );
+
+  logic                      mem_mgr_req;
+  logic                      mem_mgr_write;
+  logic [               2:0] mem_mgr_size;
+
+  logic [  B_DATA_WIDTH-1:0] mem_mgr_wdata;
+  logic                      mem_mgr_ready;
+  // Response interface (valid for one cycle when transfer completes)
+  logic [  B_DATA_WIDTH-1:0] mem_mgr_rdata;
+
+  // slice address from memory manager to match BRAM address width
+  logic [  B_ADDR_WIDTH-1:0] mem_mgr_addr_ram;
+  logic [AHB_ADDR_WIDTH-1:0] mem_mgr_addr;
+
+  assign mem_mgr_addr_ram = mem_mgr_addr[B_ADDR_WIDTH-1:0];
+
+  // ---------------------------------------------------------------------------
+  // ABR Memory <-> AHB Transfer Logic
+  // ---------------------------------------------------------------------------
+
+  abr_mem_mgr #(
+    .MEM_ADDR_WIDTH   ( B_ADDR_WIDTH ),
+    .MEM_DATA_WIDTH   ( B_DATA_WIDTH )
+   ) abr_mem_mgr (
+    // Request Interface
+    .req_i   ( mem_mgr_req      ),
+    .write_i ( mem_mgr_write    ),
+    .size_i  ( mem_mgr_size     ),
+    .addr_i  ( mem_mgr_addr_ram ),
+    .wdata_i ( mem_mgr_wdata    ),
+    .ready_o ( mem_mgr_ready    ),
+    // Response Interface
+    .done_o  (                  ),
+    .rdata_o ( mem_mgr_rdata    ),
+    .error_o (                  ),
+    // mem interface
+    .addr_o  ( buff_addr_b      ),
+    .wdata_o ( buff_wdata_b     ),
+    .we_o    ( buff_we_b        ),
+    .rdata_i ( buff_rdata_b     )
+  );
+
+  logic                      ahb_mgr_req;    // initiate a transfer
+  logic                      ahb_mgr_write;  // 1 = write, 0 = read
+  logic [               2:0] ahb_mgr_size;   // HSIZE: 000=8b 001=16b 010=32b 011=64b
+  logic [AHB_ADDR_WIDTH-1:0] ahb_mgr_addr;
+  logic [AHB_DATA_WIDTH-1:0] ahb_mgr_wdata;
+  logic                      ahb_mgr_ready;  // manager ready for new request
+
+  // Response interface (valid for one cycle when transfer completes)
+  logic [AHB_DATA_WIDTH-1:0] ahb_mgr_rdata;  // read data (valid when done_o & !write)
+
+  abr_memory_transfer_controller #(
+    .ADDR_WIDTH  ( AHB_ADDR_WIDTH ),
+    .DATA_WIDTH  ( AHB_DATA_WIDTH ),
+    .A_DATA_WIDTH( B_DATA_WIDTH   )
+  ) abr_memory_transfer_controller (
+    .clk_i    ( crypt_clk     ),
+    .rst_ni   ( reset_ext     ),
+    // controller interface
+    .start_i  ( '0            ),
+    .b_addr_i ( '0            ),
+    .b_len_i  ( '0            ),
+    .op_i     ( '0            ),
+    // interface to mem mgr
+    .a_req_o  ( mem_mgr_req   ),
+    .a_write_o( mem_mgr_write ),
+    .a_size_o ( mem_mgr_size  ),
+    .a_addr_o ( mem_mgr_addr  ),
+    .a_wdata_o( mem_mgr_wdata ),
+    .a_rdata_i( mem_mgr_rdata ),
+    .a_ready_i( mem_mgr_ready ),
+    // interface to AHB manager
+    .b_req_o  ( ahb_mgr_req   ),
+    .b_write_o( ahb_mgr_write ),
+    .b_size_o ( ahb_mgr_size  ),
+    .b_addr_o ( ahb_mgr_addr  ),
+    .b_wdata_o( ahb_mgr_wdata ),
+    .b_rdata_i( ahb_mgr_rdata ),
+    .b_ready_i( ahb_mgr_ready ),
+    .busy_o   (  ),
+    .error_o  (  )
+  );
+
+  // AHB-Lite manager port
+  logic [AHB_ADDR_WIDTH-1:0] ahb_haddr;
+  logic [AHB_DATA_WIDTH-1:0] ahb_hwdata;
+  logic                      ahb_hsel;
+  logic                      ahb_hwrite;
+  logic                      ahb_hready;  // fed back from hreadyout_i
+  logic [               1:0] ahb_htrans;
+  logic [               2:0] ahb_hsize;
+  logic                      ahb_hresp;
+  logic                      ahb_hreadyout;
+  logic [AHB_DATA_WIDTH-1:0] ahb_hrdata;
+
+  abr_ahb_mgr #(
+    .AHB_ADDR_WIDTH( AHB_ADDR_WIDTH ),
+    .AHB_DATA_WIDTH( AHB_DATA_WIDTH )
+   ) abr_ahb_mgr (
+    .clk_i      ( crypt_clk     ),
+    .rst_ni     ( reset_ext     ),
+    // Memory Transfer Controller Interface
+    .req_i      ( ahb_mgr_req   ),
+    .write_i    ( ahb_mgr_write ),
+    .size_i     ( ahb_mgr_size  ),
+    .addr_i     ( ahb_mgr_addr  ),
+    .wdata_i    ( ahb_mgr_wdata ),
+    .ready_o    ( ahb_mgr_ready ),
+    .done_o     (               ),
+    .rdata_o    ( ahb_mgr_rdata ),
+    .error_o    (               ),
+    // AHB interface
+    .haddr_o    ( ahb_haddr     ),
+    .hwdata_o   ( ahb_hwdata    ),
+    .hsel_o     ( ahb_hsel      ),
+    .hwrite_o   ( ahb_hwrite    ),
+    .hready_o   ( ahb_hready    ),
+    .htrans_o   ( ahb_htrans    ),
+    .hsize_o    ( ahb_hsize     ),
+    .hresp_i    ( ahb_hresp     ),
+    .hreadyout_i( ahb_hreadyout ),
+    .hrdata_i   ( ahb_hrdata    )
+  );
+
+  // ---------------------------------------------------------------------------
+  // ABR Instance (DUT)
+  // ---------------------------------------------------------------------------
+
+  /* ToDo: Create simulation version which reports received AHB values and 
+          returns data following a request. */
+  abr_fpga_top  abr_fpga_top (
+    .clk_i        ( crypt_clk     ),
+    .rst_ni       ( reset_ext     ),
+    .haddr_i      ( ahb_haddr     ),
+    .hwdata_i     ( ahb_hwdata    ),
+    .hsel_i       ( ahb_hsel      ),
+    .hwrite_i     ( ahb_hwrite    ),
+    .hready_i     ( ahb_hready    ),
+    .htrans_i     ( ahb_htrans    ),
+    .hsize_i      ( ahb_hsize     ),
+    .hresp_o      ( ahb_hresp     ),
+    .hreadyout_o  ( ahb_hreadyout ),
+    .hrdata_o     ( ahb_hrdata    ),
+    .busy_o       (               ),
+    .error_intr_o (               ),
+    .notif_intr_o (               )
+  );
 
 endmodule

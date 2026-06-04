@@ -30,7 +30,7 @@ module abr_mem_mgr
   // Request interface
   input  logic                          req_i,    // initiate a transfer
   input  logic                          write_i,  // 1 = write, 0 = read
-  input  logic [2:0]                    size_i,   // HSIZE: 000=8b 001=16b 010=32b 011=64b
+  input  logic [               2:0]     size_i,   // HSIZE: 000=8b 001=16b 010=32b 011=64b
   input  logic [MEM_ADDR_WIDTH-1:0]     addr_i,
   input  logic [MEM_DATA_WIDTH-1:0]     wdata_i,
   output logic                          ready_o,  // manager ready for new request

@@ -39,6 +39,32 @@ package abr_fpga_pkg;
     localparam int unsigned B_WE_WIDTH     = B_DATA_WIDTH / 8;             
 
     // -----------------------------------------------------------------------
+    // AHB Sizing Parameters
+    // -----------------------------------------------------------------------
+    localparam int unsigned AHB_ADDR_WIDTH = 32;
+    localparam int unsigned AHB_DATA_WIDTH = 64;
+
+    // -----------------------------------------------------------------------
+    // CW310 USB register map
+    // Byte addresses within the first 128-byte page (reg_address == 0).
+    // reg_bytecnt[6:2] selects the register; reg_bytecnt[1:0] selects the
+    // byte within the 32-bit register.
+    // -----------------------------------------------------------------------
+    localparam logic [6:0] CW310_ADDR_DUT_CTRL0 = 7'h00;
+    localparam logic [6:0] CW310_ADDR_DUT_CTRL1 = 7'h04;
+    localparam logic [6:0] CW310_ADDR_DUT_STAT0 = 7'h08;
+    localparam logic [6:0] CW310_ADDR_DUT_STAT1 = 7'h0C;
+    localparam logic [6:0] CW310_ADDR_ABR_INSTR = 7'h10;
+
+    // ABR_DBUFF — 2048-byte data buffer, forwarded to an external module.
+    // Access within this range is NOT stored here; writes are forwarded as a
+    // pulsed strobe and reads are returned from an external input port.
+    localparam logic [19:0] CW310_ADDR_ABR_DBUFF_BASE = 20'h0100;  // inclusive
+    localparam logic [19:0] CW310_ADDR_ABR_DBUFF_END  = 20'h0900;  // exclusive
+    localparam int unsigned CW310_ABR_DBUFF_ADDR_W    =            // = 11
+        $clog2(CW310_ADDR_ABR_DBUFF_END - CW310_ADDR_ABR_DBUFF_BASE);
+
+    // -----------------------------------------------------------------------
     // AHB register base addresses
     // -----------------------------------------------------------------------
     localparam logic [31:0] ADDR_ABR_ENTROPY       = 32'h0018;

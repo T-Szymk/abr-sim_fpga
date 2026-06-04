@@ -8,7 +8,7 @@ module abr_memory_transfer_controller
 #(
     parameter int unsigned ADDR_WIDTH      = 32,
     parameter int unsigned DATA_WIDTH      = 64, // B interface width           // TODO: This should be a constant in a package
-    localparam int unsigned A_DATA_WIDTH   = 32, // A interface: 32b            // TODO: This should be a constant in a package
+    parameter int unsigned A_DATA_WIDTH    = 32, // A interface: 32b            // TODO: This should be a constant in a package
     localparam int unsigned SizeWidth      =  3, // Width of size field for AHB // TODO: This should be a constant in a package
     localparam int unsigned BLenWidth      = 16  // Byte length of bursts       // TODO: This should be a constant in a package
 ) (
