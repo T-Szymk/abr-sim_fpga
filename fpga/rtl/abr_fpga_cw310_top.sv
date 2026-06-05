@@ -14,7 +14,7 @@ module abr_fpga_cw310_top
   input  wire                      USRDIP0,        // DIP switch 0
   input  wire                      USRDIP1,        // DIP switch 1
   input  wire                      USRSW0,         // active-low reset
-  output wire [     LED_COUNT-1:0] USRLED,         // user LEDs
+  output wire [     LED_COUNT-1:0] USRLED,         // user LEDs TODO: Wire to debug signals
   output wire                      CWIO_IO4,       // IO used for trigger  
   // USB Interface
   input  wire                      usb_clk,        // Clock
@@ -34,16 +34,19 @@ module abr_fpga_cw310_top
 
   /* Signals and Logic */
 
-  // Internal signal for reset
-  logic usb_reset;
-  logic reset_ext;
-  logic reset_int;
-  logic rst_n;
-  logic clk_int;
+  // Internal signals for resets  
+  logic reset_ext; // External reset
+  logic usb_reset; // USB reset
+  logic reset_int; // mmcm lock
+  logic rst_n;     // reset to FPGA logic
+  logic dut_rstn;  // reset to ABR
+
+  logic clk_int;   // output from mmcm
 
 
   // Debug counter for LED toggling
-  logic [25:0] debug_counter;
+  logic [25:0] dbg_cntr_fpga;
+  logic [25:0] dbg_cntr_usb;
 
   logic [ResetSyncStages-1:0] fpga_rstn_sync_ff;
   logic [ResetSyncStages-1:0] usb_rstn_sync_ff;
@@ -53,6 +56,16 @@ module abr_fpga_cw310_top
 
   // Generate active-high reset signal
   assign reset_ext = ~USRSW0;
+
+  // debug LEDs
+  assign USRLED[0] = ~usb_reset;
+  assign USRLED[1] = dbg_cntr_usb[25];
+  assign USRLED[2] = rst_n;
+  assign USRLED[3] = dbg_cntr_fpga[25];
+  assign USRLED[4] = dut_rstn;
+  
+
+  assign USRLED[LED_COUNT-1:5] = '0;
 
   // ---------------------------------------------------------------------------
   // Clock Generation
@@ -93,22 +106,33 @@ module abr_fpga_cw310_top
   // Reset Synchroniser for USB logic
   // ---------------------------------------------------------------------------
 
-  // n-stage reset synchronizer
-  always_ff @(posedge clk_int or posedge reset_ext) begin
+  // n-stage ACTIVE-HIGH reset synchronizer
+  always_ff @(posedge usb_clk or posedge reset_ext) begin
     if (reset_ext) begin
-      usb_rstn_sync_ff <= '0; // Set all stages to 0 on reset
+      usb_rstn_sync_ff <= '1; // Set all stages to 0 on reset
     end else begin
-      usb_rstn_sync_ff <= {usb_rstn_sync_ff[ResetSyncStages-2:0], reset_int}; // Shift in the async reset
+      usb_rstn_sync_ff <= {usb_rstn_sync_ff[ResetSyncStages-2:0], ~reset_int}; // Shift in the async reset
     end
   end
 
-  assign rst_n = usb_rstn_sync_ff[ResetSyncStages-1];
+  assign usb_reset = usb_rstn_sync_ff[ResetSyncStages-1];
+
+  // ---------------------------------------------------------------------------
+  // Debug Counter for USB logic
+  // ---------------------------------------------------------------------------
+  always_ff @(posedge usb_clk or posedge usb_reset) begin
+    if (usb_reset) begin
+      dbg_cntr_usb <= 0;
+    end else begin
+      dbg_cntr_usb <= dbg_cntr_usb + 1;
+    end
+  end
 
   // ---------------------------------------------------------------------------
   // Reset Synchroniser for FPGA logic
   // ---------------------------------------------------------------------------
 
-  // n-stage reset synchronizer
+  // n-stage ACTIVE-LOW reset synchronizer
   always_ff @(posedge clk_int or posedge reset_ext) begin
     if (reset_ext) begin
       fpga_rstn_sync_ff <= '0; // Set all stages to 0 on reset
@@ -117,16 +141,16 @@ module abr_fpga_cw310_top
     end
   end
 
-  assign usb_reset = fpga_rstn_sync_ff[ResetSyncStages-1];
+  assign rst_n = fpga_rstn_sync_ff[ResetSyncStages-1];
 
   // ---------------------------------------------------------------------------
-  // Debug Counter
+  // Debug Counter for FPGA logic
   // ---------------------------------------------------------------------------
   always_ff @(posedge clk_int or negedge rst_n) begin
-    if (!rst_n) begin
-      debug_counter <= 0;
+    if (~rst_n) begin
+      dbg_cntr_fpga <= 0;
     end else begin
-      debug_counter <= debug_counter + 1;
+      dbg_cntr_fpga <= dbg_cntr_fpga + 1;
     end
   end
   
@@ -240,7 +264,6 @@ module abr_fpga_cw310_top
 
   logic                         dut_rstn_reg;
 
-  logic                         dut_rstn;
   logic                         dut_busy;  
 
   abr_instr_decode #(

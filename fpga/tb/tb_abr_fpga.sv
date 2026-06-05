@@ -88,9 +88,12 @@ module tb_abr_fpga;
   // -------------------------------------------------------------------------
   
   initial begin
-    if ($realtime >= TB_TIMEOUT) begin 
-      $display("[%0t ns] TB : Test bench timed out!", $realtime/1ns);
-      $finish;
+    forever begin
+      @(posedge tb_pll_clk);
+      if ($realtime >= TB_TIMEOUT) begin 
+        $display("[%0t ns] TB : Test bench timed out!", $realtime/1ns);
+        $finish;
+      end
     end
   end
 
@@ -109,8 +112,8 @@ module tb_abr_fpga;
   // DUT Instance
   // -------------------------------------------------------------------------
 
-  assign tb_j16_sel  = 1'b1; // enabled pll clock
-  assign tb_k16_sel  = 1'b1; // enables output clock
+  assign tb_j16_sel  = 1'b0; // enabled pll clock
+  assign tb_k16_sel  = 1'b0; // enables output clock
   assign usb_trigger = 1'b0; // unused - normally used to drive functions when usb clock is disabled
 
   assign read_select = (usb_wrn == 1'b0) ? 1'b0 : 1'b1;

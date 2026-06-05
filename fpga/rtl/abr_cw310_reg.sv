@@ -81,7 +81,6 @@ module abr_cw310_reg
   logic [pADDR_WIDTH-1:0] full_byte_addr; // reconstructed 20-bit USB byte address
   logic [4:0]             reg_idx;        // register select within page 0
   logic [1:0]             byte_sel;       // byte within 32-bit register
-  logic                   page_sel;       // access targets the scalar register page
   logic                   buf_sel;        // access targets the ABR_DBUFF region
 
   // 12-bit slice used for buffer offset subtraction — wide enough to span
@@ -92,7 +91,6 @@ module abr_cw310_reg
   assign reg_idx         = full_byte_addr[6:2];
   assign byte_sel        = full_byte_addr[1:0];
 
-  assign page_sel        = reg_addrvalid && (reg_address == '0);
   assign buf_sel         = reg_addrvalid &&
                            (int'(reg_address) >= DBUFF_ADDR_LO) &&
                            (int'(reg_address) <= DBUFF_ADDR_HI);
@@ -119,7 +117,7 @@ module abr_cw310_reg
       // On a write cycle the byte assignment below comes later and wins.
       dut_ctrl1_q[0] <= 1'b0;
 
-      if (reg_write && page_sel) begin
+      if (reg_write) begin
         case (reg_idx)
           IDX_DUT_CTRL0: dut_ctrl0_q[{byte_sel, 3'b0} +: 8] <= write_data;
           IDX_DUT_CTRL1: dut_ctrl1_q[{byte_sel, 3'b0} +: 8] <= write_data;
@@ -139,7 +137,7 @@ module abr_cw310_reg
     read_data = 8'h00;
     if (reg_read && buf_sel) begin
       read_data = buf_rdata_i;
-    end else if (reg_read && page_sel) begin
+    end else if (reg_read) begin
       case (reg_idx)
         IDX_DUT_CTRL0: read_data = dut_ctrl0_q[{byte_sel, 3'b0} +: 8];
         IDX_DUT_CTRL1: read_data = dut_ctrl1_q[{byte_sel, 3'b0} +: 8];
