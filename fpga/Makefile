@@ -11,13 +11,21 @@ FPGA_SRC_DIR  = $(CURR_DIR)/rtl
 FPGA_TB_DIR   = $(CURR_DIR)/tb
 CW310_DIR     = $(CURR_DIR)/cw310-bergen-board
 
-FPGA_SV_FILES    = $(FPGA_SRC_DIR)/abr_fpga_pkg.sv      \
-                   $(FPGA_SRC_DIR)/abr_mem_fpga.sv      \
-                   $(FPGA_SRC_DIR)/abr_ahb_mgr.sv       \
-									 $(FPGA_SRC_DIR)/abr_mem_if_pack.sv   \
-									 $(FPGA_SRC_DIR)/abr_mem_if_unpack.sv \
-									 $(FPGA_SRC_DIR)/abr_top_wrapper.sv   \
-                   $(FPGA_SRC_DIR)/abr_fpga_top.sv
+FPGA_SV_FILES    = $(FPGA_SRC_DIR)/abr_fpga_pkg.sv                    \
+                   $(FPGA_SRC_DIR)/abr_ahb_mgr.sv                     \
+                   $(FPGA_SRC_DIR)/abr_cw310_reg.sv                   \
+                   $(FPGA_SRC_DIR)/abr_fpga_cw310_top.sv              \
+                   $(FPGA_SRC_DIR)/abr_fpga_top.sv                    \
+                   $(FPGA_SRC_DIR)/abr_instr_decode.sv                \
+                   $(FPGA_SRC_DIR)/abr_mem_fpga.sv                    \
+                   $(FPGA_SRC_DIR)/abr_mem_if_pack.sv                 \
+                   $(FPGA_SRC_DIR)/abr_mem_if_unpack.sv               \
+                   $(FPGA_SRC_DIR)/abr_mem_mgr.sv                     \
+                   $(FPGA_SRC_DIR)/abr_memory_transfer_controller.sv  \
+                   $(FPGA_SRC_DIR)/abr_ram_array.sv                   \
+                   $(FPGA_SRC_DIR)/abr_top_wrapper_black_box.v        \
+                   $(FPGA_SRC_DIR)/abr_top_wrapper.sv                 \
+                   $(FPGA_SRC_DIR)/amd_tdp_bram.sv
 
 ABR_SV_FILES     = ${ADAMSBRIDGE_ROOT}/src/abr_top/rtl/abr_config_defines.svh                 \
                    ${ADAMSBRIDGE_ROOT}/src/abr_top/rtl/abr_params_pkg.sv                      \
@@ -194,18 +202,12 @@ ABR_SV_FILES     = ${ADAMSBRIDGE_ROOT}/src/abr_top/rtl/abr_config_defines.svh   
                    ${ADAMSBRIDGE_ROOT}/src/abr_top/rtl/abr_top.sv                             \
                    ${ADAMSBRIDGE_ROOT}/src/abr_top/rtl/abr_reg.sv
 
-CW_SRC_FILES     = $(CW310_DIR)/fpga/aes/hdl/aes_core.v         \
-                   $(CW310_DIR)/fpga/aes/hdl/aes_ks.v           \
-                   $(CW310_DIR)/fpga/aes/hdl/aes_sbox.v         \
-                   $(CW310_DIR)/fpga/aes/hdl/cdc_pulse.v        \
-                   $(CW310_DIR)/fpga/aes/hdl/clocks.v           \
-                   $(CW310_DIR)/fpga/aes/hdl/cw310_reg_aes.v    \
-                   $(CW310_DIR)/fpga/aes/hdl/cw310_top.v        \
-                   $(CW310_DIR)/fpga/aes/hdl/cw310_usb_reg_fe.v
+CW_SRC_FILES     = $(CW310_DIR)/fpga/aes/hdl/cw310_usb_reg_fe.v
 
-FPGA_TB_SV_FILES = $(FPGA_TB_DIR)/tb_cw310_pkg.sv \
-									 $(FPGA_TB_DIR)/tb_abr_fpga.sv \
-									 $(FPGA_TB_DIR)/tb_cw310_aes.sv
+FPGA_TB_SV_FILES = $(FPGA_SRC_DIR)/abr_fpga_pkg.sv \
+                   $(FPGA_TB_DIR)/tb_cw310_pkg.sv  \
+									 $(FPGA_TB_DIR)/tb_abr_fpga.sv   \
+									 $(FPGA_TB_DIR)/abr_fpga_top_sim.sv
 
 INC_DIRS         = +incdir+${ADAMSBRIDGE_ROOT}/src/abr_top/rtl           \
                    +incdir+${ADAMSBRIDGE_ROOT}/src/abr_libs/rtl          \
@@ -234,7 +236,7 @@ INC_DIRS         = +incdir+${ADAMSBRIDGE_ROOT}/src/abr_top/rtl           \
                    +incdir+${ADAMSBRIDGE_ROOT}/src/decompress/rtl        \
                    +incdir+$(CW310_DIR)/fpga/aes/hdl/
 
-SIM_TOP_MODULE    ?= tb_310_aes
+SIM_TOP_MODULE    ?= tb_abr_fpga
 
 ################################################################################
 
@@ -256,7 +258,8 @@ VLOG_OPTS     += $(INC_DIRS)
 VLOG_OPTS     += +define+TECH_SPECIFIC_ICG \
 								 +define+SIMULATION \
 								 +define+NOMIG \
-								 +define+__ICARUS__
+								 +define+__ICARUS__ \
+                 +define+USE_ABR_SIM_MODEL
 
 
 VLOG_SUPPRESS ?= -suppress vlog-13314
@@ -330,8 +333,13 @@ sim_clean:
 
 V_SRCS      = $(ABR_SV_FILES) $(FPGA_SV_FILES) $(FPGA_TB_SV_FILES)
 V_INCLUDES  = $(INC_DIRS)
-V_DEFINES   = -DTECH_SPECIFIC_ICG -DVERILATOR -DSIMULATION
 V_BUILD_DIR = $(BUILD_DIR)/verilator_build
+
+V_DEFINES   = -DTECH_SPECIFIC_ICG \
+              -DVERILATOR \
+              -DSIMULATION \
+              -D__ICARUS__ \
+              -DUSE_ABR_SIM_MODEL
 
 # Verilator flags
 VFLAGS := \

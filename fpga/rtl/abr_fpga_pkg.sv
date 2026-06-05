@@ -14,6 +14,18 @@
 package abr_fpga_pkg;
 
     // -----------------------------------------------------------------------
+    // FPGA configuration params
+    // -----------------------------------------------------------------------
+    localparam int unsigned LED_COUNT       =  6;
+
+    localparam int unsigned USB_DATA_WIDTH      =  8;
+    localparam int unsigned USB_ADDR_WIDTH      = 20;
+    localparam int unsigned USB_BCOUNT_SIZE     =  2;
+    localparam int unsigned USB_WORD_ADDR_WIDTH = USB_ADDR_WIDTH - USB_BCOUNT_SIZE;
+
+    localparam int unsigned CLK_SETTINGS_WIDTH = 5;
+
+    // -----------------------------------------------------------------------
     // Size Parameter encodings
     // -----------------------------------------------------------------------
     typedef enum logic [2:0] {

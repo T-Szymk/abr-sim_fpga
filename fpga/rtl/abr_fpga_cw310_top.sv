@@ -4,30 +4,26 @@
 module abr_fpga_cw310_top 
   import abr_fpga_pkg::*; 
 #(
-  parameter integer unsigned pBYTECNT_SIZE =   7,
-  parameter integer unsigned pADDR_WIDTH   =  20,
-  parameter integer unsigned pPT_WIDTH     = 128,
-  parameter integer unsigned pCT_WIDTH     = 128,
-  parameter integer unsigned pKEY_WIDTH    = 128
+  parameter integer unsigned pBYTECNT_SIZE =   2,
+  parameter integer unsigned pADDR_WIDTH   =  20
 ) (
-  input  wire                   PLL_CLK_1,   // clk
-  output wire                   CWIO_HS1,    // output clock for scope triggering    
-  input  wire                   CWIO_HS2,
+  input  wire                      PLL_CLK_1,   // clk
+  output wire                      CWIO_HS1,    // output clock for scope triggering    
+  input  wire                      CWIO_HS2,
 
-  input  wire                   USRDIP0,        // DIP switch 0
-  input  wire                   USRDIP1,        // DIP switch 1
-  input  wire                   USRSW0,         // active-low reset
-  output wire [            5:0] USRLED,         // user LEDs
-  output wire                   CWIO_IO4,       // IO used for trigger  
+  input  wire                      USRDIP0,        // DIP switch 0
+  input  wire                      USRDIP1,        // DIP switch 1
+  input  wire                      USRSW0,         // active-low reset
+  output wire [     LED_COUNT-1:0] USRLED,         // user LEDs
+  output wire                      CWIO_IO4,       // IO used for trigger  
   // USB Interface
-  input  wire                   usb_clk,        // Clock
-  inout  wire [            7:0] USB_D,          // Data for write/read
-  input  wire [pADDR_WIDTH-1:0] USB_A,          // Address
-  input  wire                   USB_nRD,        // !RD, low when addr valid for read
-  input  wire                   USB_nWR,        // !WR, low when data+addr valid for write
-  input  wire                   USB_nCE,        // !CE, active low chip enable
-  input  wire                   usb_trigger     // High when trigger requested
-
+  input  wire                      usb_clk,        // Clock
+  inout  wire [USB_DATA_WIDTH-1:0] USB_D,          // Data for write/read
+  input  wire [USB_ADDR_WIDTH-1:0] USB_A,          // Address
+  input  wire                      USB_nRD,        // !RD, low when addr valid for read
+  input  wire                      USB_nWR,        // !WR, low when data+addr valid for write
+  input  wire                      USB_nCE,        // !CE, active low chip enable
+  input  wire                      usb_trigger     // High when trigger requested
 );
 
   timeunit 1ns/1ps;
@@ -51,18 +47,45 @@ module abr_fpga_cw310_top
   logic [ResetSyncStages-1:0] fpga_rstn_sync_ff;
   logic [ResetSyncStages-1:0] dut_rstn_sync_ff;
 
+  
+
   // Generate active-high reset signal
   assign reset_ext = ~USRSW0;
 
   // ---------------------------------------------------------------------------
   // Clock Generation
   // ---------------------------------------------------------------------------
+`ifndef SYNTHESIS
+
+  const int unsigned reset_delay_cycles_c = 5;
+  int unsigned       reset_counter;
+
+  assign clk_int = PLL_CLK_1;
+
+  // delay lock signal generation
+  always_ff @(posedge clk_int or negedge reset_ext) begin
+    if (reset_ext) begin
+      reset_int     <= 1'b0;
+      reset_counter <= 0;
+    end else begin
+      if (reset_counter >= reset_delay_cycles_c) begin
+        reset_int <= 1'b1;
+      end else begin
+        reset_counter <= reset_counter + 1;
+      end
+    end
+  end
+  
+`else
+
   ip_top_clk top_clk (
     .clk_in1  ( PLL_CLK_1  ), // input  external clock in
     .clk_out  ( clk_int    ), // output clk_out
     .reset    ( reset_ext  ), // input  reset
     .clk_lock ( reset_int  )  // output clk_lock    
   );
+
+`endif
 
   // ---------------------------------------------------------------------------
   // Reset Synchroniser for FPGA logic
@@ -90,23 +113,23 @@ module abr_fpga_cw310_top
     end
   end
   
-  logic                                 usb_reset;
-  logic                                 usb_clk_buf;
-  logic                                 isout;
-  logic [                          7:0] usb_dout;
+  logic                             usb_reset;
+  logic                             usb_clk_buf;
+  logic                             isout;
+  logic [       USB_DATA_WIDTH-1:0] usb_dout;
 
-  logic [pADDR_WIDTH-pBYTECNT_SIZE-1:0] reg_address;
-  logic [            pBYTECNT_SIZE-1:0] reg_bytecnt;
-  logic                                 reg_addrvalid;
-  logic [                          7:0] write_data;
-  logic [                          7:0] read_data;
-  logic                                 reg_read;
-  logic                                 reg_write;
-  logic [                          4:0] clk_settings;
-  logic                                 crypt_clk;
+  logic [  USB_WORD_ADDR_WIDTH-1:0] reg_address;
+  logic [      USB_BCOUNT_SIZE-1:0] reg_bytecnt;
+  logic                             reg_addrvalid;
+  logic [       USB_DATA_WIDTH-1:0] write_data;
+  logic [       USB_DATA_WIDTH-1:0] read_data;
+  logic                             reg_read;
+  logic                             reg_write;
+  logic [   CLK_SETTINGS_WIDTH-1:0] clk_settings;
+  logic                             crypt_clk;
 
   assign usb_reset    = !reset_int; // Use inverted synchronized reset for USB logic
-  assign USB_D        = isout? usb_dout : 8'bZ;
+  assign USB_D        = isout ? usb_dout : 'Z;
   assign clk_settings = '0; // Use DIP switches for clock settings
 
   // ---------------------------------------------------------------------------
@@ -203,7 +226,7 @@ module abr_fpga_cw310_top
   logic                         dut_rstn_reg;
 
   logic                         dut_rstn;
-  logic                         dut_busy;
+  logic                         dut_busy;  
 
   abr_instr_decode #(
   ) i_abr_instr_decode (
@@ -229,6 +252,9 @@ module abr_fpga_cw310_top
   assign dut_stat0[   0] = dut_rstn;
   assign dut_stat0[   1] = dut_busy;
   assign dut_stat0[31:2] = '0;
+
+  // use busy signal for trigger
+  assign CWIO_IO4 = dut_busy;
 
   ////////////
   // STAT 1 //
@@ -402,10 +428,12 @@ module abr_fpga_cw310_top
   // ABR Instance (DUT)
   // ---------------------------------------------------------------------------
   
+`ifdef USE_ABR_SIM_MODEL
 
-  /* ToDo: Create simulation version which reports received AHB values and 
-          returns data following a request. */
-  abr_fpga_top  abr_fpga_top (
+  // To prevent long simulations when testing the FPGA infrastructure, a simple
+  // simulation model of ABR can be used which reports AHB accesses and responds
+  // to reads with dummy data (containing the address)
+  abr_fpga_top_sim  i_abr_fpga_top_sim (
     .clk_i        ( crypt_clk     ),
     .rst_ni       ( dut_rstn      ),
     .haddr_i      ( ahb_haddr     ),
@@ -422,5 +450,27 @@ module abr_fpga_cw310_top
     .error_intr_o (               ),
     .notif_intr_o (               )
   );
+
+`else
+
+  abr_fpga_top  i_abr_fpga_top (
+    .clk_i        ( crypt_clk     ),
+    .rst_ni       ( dut_rstn      ),
+    .haddr_i      ( ahb_haddr     ),
+    .hwdata_i     ( ahb_hwdata    ),
+    .hsel_i       ( ahb_hsel      ),
+    .hwrite_i     ( ahb_hwrite    ),
+    .hready_i     ( ahb_hready    ),
+    .htrans_i     ( ahb_htrans    ),
+    .hsize_i      ( ahb_hsize     ),
+    .hresp_o      ( ahb_hresp     ),
+    .hreadyout_o  ( ahb_hreadyout ),
+    .hrdata_o     ( ahb_hrdata    ),
+    .busy_o       ( dut_busy      ),
+    .error_intr_o (               ),
+    .notif_intr_o (               )
+  );
+
+`endif
 
 endmodule

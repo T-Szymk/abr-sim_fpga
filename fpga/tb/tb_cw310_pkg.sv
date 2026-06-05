@@ -1,30 +1,25 @@
-`include "cw310_defines.v"
 
 package tb_cw310_pkg;
 
-  parameter int unsigned pADDR_WIDTH   =  20;
-  parameter int unsigned pDATA_WIDTH   =   8;
-  parameter int unsigned pBYTECNT_SIZE =   7;
-  parameter int unsigned pPT_WIDTH     = 128;
-  parameter int unsigned pCT_WIDTH     = 128;
-  parameter int unsigned pKEY_WIDTH    = 128;
-  
-  parameter bit          pVERBOSE      = 1'b0;
+  import abr_fpga_pkg::*;
 
-  localparam integer unsigned RegAddrWidth = pADDR_WIDTH - pBYTECNT_SIZE;
+  parameter realtime TB_PLL_CLK_PERIOD =  1.0ns; 
+  parameter realtime USB_CLK_PERIOD    = 10.0ns;
+  parameter realtime TB_RESET_DURATION = 20.0ns; // Reset active for first 20 ns
+  parameter realtime TB_TIMEOUT        =  1.0ms; // Timeout for test completion
 
-  typedef logic [  pADDR_WIDTH-1:0] UsbAddr_t;
-  typedef logic [  pDATA_WIDTH-1:0] UsbData_t;
-  typedef logic [ RegAddrWidth-1:0] RegAddr_t;
-  typedef logic [pBYTECNT_SIZE-1:0] ByteCnt_t;
+  parameter bit      VERBOSE           = 1'b0;
 
-  localparam RegAddr_t REG_CRYPT_TEXTIN      = `REG_CRYPT_TEXTIN;
-  localparam RegAddr_t REG_CRYPT_KEY         = `REG_CRYPT_KEY;
-  localparam RegAddr_t REG_CRYPT_GO          = `REG_CRYPT_GO;
-  localparam RegAddr_t REG_CRYPT_CIPHEROUT   = `REG_CRYPT_CIPHEROUT;
+  typedef logic [      USB_ADDR_WIDTH-1:0] UsbAddr_t;
+  typedef logic [      USB_DATA_WIDTH-1:0] UsbData_t;
+  typedef logic [ USB_WORD_ADDR_WIDTH-1:0] RegAddr_t;
+  typedef logic [     USB_BCOUNT_SIZE-1:0] ByteCnt_t;
+
+  // ------------------------------------------------------------------------
+  // Tasks to read/write USB registers
+  // ------------------------------------------------------------------------
 
   task automatic write_byte(
-    input  logic     [1:0] block,
     input  RegAddr_t       address,
     input  ByteCnt_t       subbyte,
     input  UsbData_t       data,
@@ -36,7 +31,7 @@ package tb_cw310_pkg;
   );
     begin
       @(posedge usb_clk);
-      usb_addr  = pADDR_WIDTH'({block, address[5:0], subbyte});
+      usb_addr  = {address, subbyte};
       usb_wdata = data;
       usb_wrn   = 1'b0;
       @(posedge usb_clk);
@@ -51,7 +46,6 @@ package tb_cw310_pkg;
 
 
   task automatic read_byte(
-    input  logic     [1:0] block,
     input  RegAddr_t       address,
     input  ByteCnt_t       subbyte,
     output UsbData_t       data,
@@ -63,7 +57,7 @@ package tb_cw310_pkg;
   );
     begin
       @(posedge usb_clk);
-      usb_addr = pADDR_WIDTH'({block, address[5:0], subbyte});
+      usb_addr = {address, subbyte};
       @(posedge usb_clk);
       usb_rdn = 1'b0;
       usb_cen = 1'b0;
@@ -92,14 +86,13 @@ package tb_cw310_pkg;
     begin
       for (int subbyte = 0; subbyte < int'(bytes); subbyte++) begin
         write_byte(
-          block, 
           address, 
-          subbyte[pBYTECNT_SIZE-1:0], 
+          subbyte[USB_BCOUNT_SIZE-1:0], 
           data[subbyte*8 +: 8],
           usb_clk, usb_addr, usb_wdata, usb_wrn, usb_cen
         );
       end
-      if (pVERBOSE)
+      if (VERBOSE)
         $display("Write %0h", data);
     end
   endtask : write_bytes
@@ -119,13 +112,12 @@ package tb_cw310_pkg;
     begin
       for (int subbyte = 0; subbyte < int'(bytes); subbyte++) begin
         read_byte(
-          block, 
           address, 
-          subbyte[pBYTECNT_SIZE-1:0], 
+          subbyte[USB_BCOUNT_SIZE-1:0], 
           data[subbyte*8 +: 8],
           usb_clk, usb_addr, usb_rdn, usb_cen, usb_data);
       end
-      if (pVERBOSE)
+      if (VERBOSE)
         $display("Read %0h", data);
     end
   endtask : read_bytes

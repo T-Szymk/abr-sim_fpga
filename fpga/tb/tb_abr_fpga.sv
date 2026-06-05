@@ -1,109 +1,96 @@
 
 module tb_abr_fpga;
 
-    timeunit 1ns / 1ps;
+  timeunit 1ns / 1ps;
     
-    import abr_fpga_pkg::*;
+  import tb_cw310_pkg::*;
+  import abr_fpga_pkg::*;
 
-    parameter realtime TB_CLOCK_PERIOD   =  1.0ns; // 1000 MHz clock
-    parameter realtime TB_RESET_DURATION = 20.0ns; // Reset active for first 20 ns
-    parameter realtime TB_TIMEOUT        =  1.0ms;  // Timeout for test completion
+  logic tb_pll_clk;
+  logic tb_usb_clk;
+  logic tb_reset;
 
-    parameter op_e             OPERATION    = OP_KGSIGN;
-    parameter integer unsigned RESET_CYCLES = 16;
+  logic                     tb_j16_sel;
+  logic                     tb_k16_sel;
+  logic                     tb_cwio4_trigger;
+  logic [    LED_COUNT-1:0] tb_leds;
 
-    // Clock and reset
-    logic clk_i;
-    logic rst_ni;
-    logic done_o;
-    logic error_o;
-    logic busy_o;
-    logic error_intr_o;
-    logic notif_intr_o;
-    logic ext_trigger;
+  logic                      usb_clk;
+  logic                      usb_clk_enable;
+  wire  [USB_DATA_WIDTH-1:0] usb_data;
+  logic [USB_DATA_WIDTH-1:0] usb_wdata;
+  logic [USB_ADDR_WIDTH-1:0] usb_addr;
+  logic                      usb_rdn;
+  logic                      usb_wrn;
+  logic                      usb_cen;
+  logic                      usb_trigger;
 
-    typedef enum logic [1:0] {
-        ST_IDLE,
-        ST_START_OP,
-        ST_WAIT_FOR_DONE
-    } tb_state_e;
+  logic                      read_select;
 
-    tb_state_e tb_state;
+  
+  // -------------------------------------------------------------------------
+  // Clock gen
+  // -------------------------------------------------------------------------
 
-    // Clock generation
-    initial begin
-        clk_i = 0;
-        forever begin
-          #(TB_CLOCK_PERIOD/2) clk_i = ~clk_i; // 100 MHz clock
-          if ($realtime > TB_TIMEOUT) begin
-            $display("ERROR: Test timed out after %0t", $time);
-            $finish;
-          end
-        end
+  // PLL
+  initial begin
+    tb_pll_clk = 1'b0;
+    forever begin
+      #(TB_PLL_CLK_PERIOD) tb_pll_clk = ~tb_pll_clk;
     end
+  end
 
-    // Reset generation
-    initial begin
-        rst_ni = 0;
-        #(TB_RESET_DURATION) rst_ni = 1; // Release reset after 20 ns
+  // USB
+  initial begin
+    tb_usb_clk = 1'b0;
+    forever begin
+      #(USB_CLK_PERIOD) tb_usb_clk = ~tb_usb_clk;
     end
+  end
 
-    // TB State machine to trigger operation
-    always_ff @(posedge clk_i or negedge rst_ni) begin
-        if (!rst_ni) begin
-            ext_trigger <= 0;
-            tb_state    <= ST_IDLE;
-        end else begin
-            case (tb_state)
-                ST_IDLE: begin
-                    // Wait for a few cycles after reset before starting the operation
-                    if ($realtime > (TB_RESET_DURATION + (2 * RESET_CYCLES * TB_CLOCK_PERIOD))) begin
-                        ext_trigger <= 1; // Trigger the operation
-                        tb_state <= ST_START_OP;
-                    end
-                end
+  assign usb_clk = tb_usb_clk & usb_clk_enable;
 
-                ST_START_OP: begin
-                    ext_trigger <= 0; // De-assert trigger after one cycle
-                    tb_state    <= ST_WAIT_FOR_DONE;
-                end
+  // -------------------------------------------------------------------------
+  // TB Logic Instance
+  // -------------------------------------------------------------------------
 
-                ST_WAIT_FOR_DONE: begin                    
-                    // Wait for done_o to be asserted by the DUT (handled in the monitor below)
-                    if (done_o) begin
-                        $display("TB: Operation completed successfully at %0t", $realtime);
-                        $finish;
-                    end else if (error_o) begin
-                        $display("TB: Operation failed with error at %0t", $realtime);
-                        $finish;
-                    end
-                end
+  initial begin
+    
+    $display("[%0t ns] TB : Starting tb_abr_fpga testbench", $realtime/1ns);
 
-                default: tb_state <= ST_IDLE;
-            endcase
-        end
+    // initialise signals
+    usb_clk_enable = 1'b1;
+    usb_wdata      = 0;
+    usb_addr       = 0;
+    usb_rdn        = 1;
+    usb_wrn        = 1;
+    usb_cen        = 1;
+
+    // simulate reset 
+    tb_reset = 1;
+    #(USB_CLK_PERIOD*2);
+     tb_reset = 0;
+    #(USB_CLK_PERIOD*2);
+     tb_reset = 1;
+
+    #(USB_CLK_PERIOD*10);
+    
+  end
+
+  // -------------------------------------------------------------------------
+  // TB Timeout
+  // -------------------------------------------------------------------------
+  
+  initial begin
+    if ($realtime >= TB_TIMEOUT) begin 
+      $display("[%0t ns] TB : Test bench timed out!", $realtime/1ns);
+      $finish;
     end
+  end
 
-    // Instantiate the DUT
-    abr_fpga_top #(
-        .OPERATION     ( OPERATION    ),
-        .RESET_CYCLES  ( RESET_CYCLES )
-    ) dut (
-        .clk_i         ( clk_i        ),
-        .rst_ni        ( rst_ni       ),
-`ifdef RV_FPGA_SCA
-        .NTT_trigger   ( NTT_trigger  ),
-        .PWM_trigger   ( PWM_trigger  ),
-        .PWA_trigger   ( PWA_trigger  ),
-        .INTT_trigger  ( INTT_trigger ),
-`endif
-        .ext_trigger_i ( ext_trigger  ),
-        .done_o        ( done_o       ),
-        .error_o       ( error_o      ),
-        .busy_o        ( busy_o       ),
-        .error_intr_o  ( error_intr_o ),
-        .notif_intr_o  ( notif_intr_o )
-    );
+  // -------------------------------------------------------------------------
+  // Waveform gen
+  // -------------------------------------------------------------------------
 
 `ifdef VERILATOR
     initial begin
@@ -111,6 +98,42 @@ module tb_abr_fpga;
         $dumpvars();
     end
 `endif 
+
+  // -------------------------------------------------------------------------
+  // DUT Instance
+  // -------------------------------------------------------------------------
+
+  assign tb_j16_sel  = 1'b1; // enabled pll clock
+  assign tb_k16_sel  = 1'b1; // enables output clock
+  assign usb_trigger = 1'b0; // unused - normally used to drive functions when usb clock is disabled
+
+  assign read_select = (usb_wrn == 1'b0) ? 1'b0 : 1'b1;
+  assign usb_data    = read_select ? 'Z : usb_wdata;
+
+  wire #1 usb_rdn_dly = usb_rdn;
+  wire #1 usb_wrn_dly = usb_wrn;
+  wire #1 usb_cen_dly = usb_cen;
+
+  abr_fpga_cw310_top #(
+    .pBYTECNT_SIZE( USB_BCOUNT_SIZE ),
+    .pADDR_WIDTH  ( USB_ADDR_WIDTH  )
+   ) abr_fpga_cw310_top (
+    .PLL_CLK_1  ( tb_pll_clk       ),
+    .CWIO_HS1   ( /*NC*/           ),
+    .CWIO_HS2   ( 1'b0             ),
+    .USRDIP0    ( tb_j16_sel       ),
+    .USRDIP1    ( tb_k16_sel       ),
+    .USRSW0     ( tb_reset         ),
+    .USRLED     ( tb_leds          ),
+    .CWIO_IO4   ( tb_cwio4_trigger ),
+    .usb_clk    ( tb_usb_clk       ),
+    .USB_D      ( usb_data         ),
+    .USB_A      ( usb_addr         ),
+    .USB_nRD    ( usb_rdn_dly      ),
+    .USB_nWR    ( usb_wrn_dly      ),
+    .USB_nCE    ( usb_cen_dly      ),
+    .usb_trigger( usb_trigger      )
+  );
 
 
 endmodule : tb_abr_fpga
