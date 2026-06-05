@@ -43,6 +43,24 @@ package abr_fpga_pkg;
     // -----------------------------------------------------------------------
     localparam int unsigned AHB_ADDR_WIDTH = 32;
     localparam int unsigned AHB_DATA_WIDTH = 64;
+    localparam int unsigned AHB_SIZE_WIDTH =  3;
+
+    // -----------------------------------------------------------------------
+    // CW Register sizing parameters
+    // -----------------------------------------------------------------------
+    localparam int unsigned CW_REG_DATA_WIDTH = 32;
+
+    // -----------------------------------------------------------------------
+    // ABR Instruction Parameters
+    // -----------------------------------------------------------------------
+    localparam int unsigned INSTR_ADDR_WIDTH = 16;
+    localparam int unsigned INSTR_LEN_WIDTH  = 12;
+    localparam int unsigned INSTR_OP_WIDTH   =  4;
+
+    // -----------------------------------------------------------------------
+    // Memory Transfer Controller Parameters
+    // -----------------------------------------------------------------------
+    localparam int unsigned M_XFER_BLEN_WIDTH = 16; // Length of 'Bytes to transfer' field
 
     // -----------------------------------------------------------------------
     // CW310 USB register map

@@ -113,13 +113,20 @@ module abr_cw310_reg
       dut_ctrl0_q <= '0;
       dut_ctrl1_q <= '0;
       abr_instr_q <= '0;
-    end else if (reg_write && page_sel) begin
-      case (reg_idx)
-        IDX_DUT_CTRL0: dut_ctrl0_q[{byte_sel, 3'b0} +: 8] <= write_data;
-        IDX_DUT_CTRL1: dut_ctrl1_q[{byte_sel, 3'b0} +: 8] <= write_data;
-        IDX_ABR_INSTR: abr_instr_q[{byte_sel, 3'b0} +: 8] <= write_data;
-        default: ;
-      endcase
+    end else begin
+      // DUT_CTRL1[0] is a self-clearing trigger bit — drive it low every cycle
+      // so that a write setting it to 1 produces exactly a one-cycle pulse.
+      // On a write cycle the byte assignment below comes later and wins.
+      dut_ctrl1_q[0] <= 1'b0;
+
+      if (reg_write && page_sel) begin
+        case (reg_idx)
+          IDX_DUT_CTRL0: dut_ctrl0_q[{byte_sel, 3'b0} +: 8] <= write_data;
+          IDX_DUT_CTRL1: dut_ctrl1_q[{byte_sel, 3'b0} +: 8] <= write_data;
+          IDX_ABR_INSTR: abr_instr_q[{byte_sel, 3'b0} +: 8] <= write_data;
+          default: ;
+        endcase
+      end
     end
   end
 

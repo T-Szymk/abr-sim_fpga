@@ -6,42 +6,35 @@
 module abr_memory_transfer_controller 
   import abr_fpga_pkg::*;
 #(
-    parameter int unsigned ADDR_WIDTH      = 32,
-    parameter int unsigned DATA_WIDTH      = 64, // B interface width           // TODO: This should be a constant in a package
-    parameter int unsigned A_DATA_WIDTH    = 32, // A interface: 32b            // TODO: This should be a constant in a package
-    localparam int unsigned SizeWidth      =  3, // Width of size field for AHB // TODO: This should be a constant in a package
-    localparam int unsigned BLenWidth      = 16  // Byte length of bursts       // TODO: This should be a constant in a package
+    parameter int unsigned A_DATA_WIDTH    = 32 // A interface: 32b            // TODO: This should be a constant in a package
 ) (
-    input  logic                     clk_i,
-    input  logic                     rst_ni,
-
+    input  logic                          clk_i,
+    input  logic                          rst_ni,
     // Controls
-    input   logic                    start_i,    // pulse to start a transfer sequence
-    input   logic [ADDR_WIDTH-1:0]   b_addr_i,   // base address for B interface
-    input   logic [BLenWidth-1:0]    b_len_i,    // number of bytes to transfer (must be multiple of 4)
-    input   logic                    op_i,       // 1 = A to B, 0 = B to A
-
+    input   logic                         start_i,    // pulse to start a transfer sequence
+    input   logic [   AHB_ADDR_WIDTH-1:0] b_addr_i,   // base address for B interface
+    input   logic [M_XFER_BLEN_WIDTH-1:0] b_len_i,    // number of bytes to transfer (must be multiple of 4)
+    input   logic                         op_i,       // 1 = A to B (write), 0 = B to A (read)
     // A interface (32-bit BRAM)
-    output  logic                    a_req_o,
-    output  logic                    a_write_o,
-    output  logic [   SizeWidth-1:0] a_size_o,   // always SIZE_32B
-    output  logic [  ADDR_WIDTH-1:0] a_addr_o,
-    output  logic [A_DATA_WIDTH-1:0] a_wdata_o,
-    input   logic [A_DATA_WIDTH-1:0] a_rdata_i,
-    input   logic                    a_ready_i,  // NOTE: Assumed to always be ready
-
+    output  logic                         a_req_o,
+    output  logic                         a_write_o,
+    output  logic [   AHB_SIZE_WIDTH-1:0] a_size_o,   // always SIZE_32B
+    output  logic [   AHB_ADDR_WIDTH-1:0] a_addr_o,
+    output  logic [     A_DATA_WIDTH-1:0] a_wdata_o,
+    input   logic [     A_DATA_WIDTH-1:0] a_rdata_i,
+    input   logic                         a_ready_i,  // NOTE: Assumed to always be ready
     // B interface (64-bit AHB, 32-bit sub-word accesses with byte-lane packing)
-    output  logic                    b_req_o,
-    output  logic                    b_write_o,
-    output  logic [ SizeWidth-1:0]   b_size_o,   // always SIZE_32B
-    output  logic [ADDR_WIDTH-1:0]   b_addr_o,
-    output  logic [DATA_WIDTH-1:0]   b_wdata_o,
-    input   logic [DATA_WIDTH-1:0]   b_rdata_i,
-    input   logic                    b_ready_i,  // NOTE: Assumed to always be ready
+    output  logic                         b_req_o,
+    output  logic                         b_write_o,
+    output  logic [   AHB_SIZE_WIDTH-1:0] b_size_o,   // always SIZE_32B
+    output  logic [   AHB_ADDR_WIDTH-1:0] b_addr_o,
+    output  logic [   AHB_DATA_WIDTH-1:0] b_wdata_o,
+    input   logic [   AHB_DATA_WIDTH-1:0] b_rdata_i,
+    input   logic                         b_ready_i,  // NOTE: Assumed to always be ready
 
     // Status
-    output  logic                    busy_o,     // transfer sequence in-progress
-    output  logic                    error_o     // error occurred during transfer sequence
+    output  logic                         busy_o,     // transfer sequence in-progress
+    output  logic                         error_o     // error occurred during transfer sequence
 );
 
   timeunit 1ns / 1ps;
@@ -52,18 +45,18 @@ module abr_memory_transfer_controller
   // -------------------------------------------------------------------------
   // Latched transfer parameters
   // -------------------------------------------------------------------------
-  logic [ADDR_WIDTH-1:0] b_base_r;
-  logic [BLenWidth-1:0]  n_words_r;
-  logic                  op_r;
+  logic [   AHB_ADDR_WIDTH-1:0] b_base_r;
+  logic [M_XFER_BLEN_WIDTH-1:0] n_words_r;
+  logic                           op_r;
 
-  logic [BLenWidth-1:0]  n_words_next;
+  logic [M_XFER_BLEN_WIDTH-1:0] n_words_next;
   assign n_words_next = b_len_i >> WordShift;
 
   // -------------------------------------------------------------------------
   // Transfer counters: reads / writes issued (reset on every new start)
   // -------------------------------------------------------------------------
-  logic [BLenWidth-1:0]  rd_cnt;
-  logic [BLenWidth-1:0]  wr_cnt;
+  logic [M_XFER_BLEN_WIDTH-1:0] rd_cnt;
+  logic [M_XFER_BLEN_WIDTH-1:0] wr_cnt;
 
   // -------------------------------------------------------------------------
   // FSM
@@ -125,8 +118,8 @@ module abr_memory_transfer_controller
   // same word index that was read in the previous cycle, so using wr_cnt here
   // naturally recovers the lane of the pending read data).
   // -------------------------------------------------------------------------
-  logic [ADDR_WIDTH-1:0] b_wr_addr;
-  assign b_wr_addr = b_base_r + (ADDR_WIDTH'(wr_cnt) << WordShift);
+  logic [AHB_ADDR_WIDTH-1:0] b_wr_addr;
+  assign b_wr_addr = b_base_r + (AHB_ADDR_WIDTH'(wr_cnt) << WordShift);
 
   // -------------------------------------------------------------------------
   // Output logic
@@ -151,7 +144,7 @@ module abr_memory_transfer_controller
         // A → B: read 32b from A, pack onto the correct B byte lane
         if (do_read) begin
           a_req_o  = 1'b1;
-          a_addr_o = ADDR_WIDTH'(rd_cnt) << WordShift;
+          a_addr_o = AHB_ADDR_WIDTH'(rd_cnt) << WordShift;
         end
         if (do_write) begin
           b_req_o   = 1'b1;
@@ -164,14 +157,14 @@ module abr_memory_transfer_controller
         // B → A: read 32b from the correct B byte lane, write to A
         if (do_read) begin
           b_req_o  = 1'b1;
-          b_addr_o = b_base_r + (ADDR_WIDTH'(rd_cnt) << WordShift);
+          b_addr_o = b_base_r + (AHB_ADDR_WIDTH'(rd_cnt) << WordShift);
         end
         if (do_write) begin
           a_req_o   = 1'b1;
           a_write_o = 1'b1;
-          a_addr_o  = ADDR_WIDTH'(wr_cnt) << WordShift;
-          a_wdata_o = b_wr_addr[2] ? b_rdata_i[DATA_WIDTH-1 : A_DATA_WIDTH]
-                                   : b_rdata_i[A_DATA_WIDTH-1 : 0];
+          a_addr_o  = AHB_ADDR_WIDTH'(wr_cnt) << WordShift;
+          a_wdata_o = b_wr_addr[2] ? b_rdata_i[AHB_DATA_WIDTH-1 : A_DATA_WIDTH]
+                                   : b_rdata_i[A_DATA_WIDTH-1   : 0];
         end
       end
     end

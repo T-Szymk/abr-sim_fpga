@@ -48,25 +48,36 @@ module abr_fpga_cw310_top
   // Debug counter for LED toggling
   logic [25:0] debug_counter;
 
-  logic [ResetSyncStages-1:0] resetn_sync_ff;
+  logic [ResetSyncStages-1:0] fpga_rstn_sync_ff;
+  logic [ResetSyncStages-1:0] dut_rstn_sync_ff;
 
   // Generate active-high reset signal
   assign reset_ext = ~USRSW0;
-  assign rst_n     = resetn_sync_ff[ResetSyncStages-1];
-
 
   // ---------------------------------------------------------------------------
-  // Reset Synchroniser
+  // Clock Generation
+  // ---------------------------------------------------------------------------
+  ip_top_clk top_clk (
+    .clk_in1  ( PLL_CLK_1  ), // input  external clock in
+    .clk_out  ( clk_int    ), // output clk_out
+    .reset    ( reset_ext  ), // input  reset
+    .clk_lock ( reset_int  )  // output clk_lock    
+  );
+
+  // ---------------------------------------------------------------------------
+  // Reset Synchroniser for FPGA logic
   // ---------------------------------------------------------------------------
 
   // n-stage reset synchronizer
   always_ff @(posedge clk_int or posedge reset_ext) begin
     if (reset_ext) begin
-      resetn_sync_ff <= '0; // Set all stages to 0 on reset
+      fpga_rstn_sync_ff <= '0; // Set all stages to 0 on reset
     end else begin
-      resetn_sync_ff <= {resetn_sync_ff[ResetSyncStages-2:0], reset_int}; // Shift in the async reset
+      fpga_rstn_sync_ff <= {fpga_rstn_sync_ff[ResetSyncStages-2:0], reset_int}; // Shift in the async reset
     end
   end
+
+  assign rst_n = fpga_rstn_sync_ff[ResetSyncStages-1];
 
   // ---------------------------------------------------------------------------
   // Debug Counter
@@ -78,7 +89,6 @@ module abr_fpga_cw310_top
       debug_counter <= debug_counter + 1;
     end
   end
-
   
   logic                                 usb_reset;
   logic                                 usb_clk_buf;
@@ -100,14 +110,8 @@ module abr_fpga_cw310_top
   assign clk_settings = '0; // Use DIP switches for clock settings
 
   // ---------------------------------------------------------------------------
-  // Clock Generation and Selection
+  // Clock Selection
   // ---------------------------------------------------------------------------
-  ip_top_clk top_clk (
-    .clk_in1  ( PLL_CLK_1  ), // input  external clock in
-    .clk_out  ( clk_int    ), // output clk_out
-    .reset    ( reset_ext  ), // input  reset
-    .clk_lock ( reset_int  )  // output clk_lock    
-  );
   
   clocks i_cw_clocks (
     .usb_clk     ( usb_clk      ),
@@ -124,6 +128,7 @@ module abr_fpga_cw310_top
   // ---------------------------------------------------------------------------
   // USB Front-End to Register Interface
   // ---------------------------------------------------------------------------
+
   cw310_usb_reg_fe #(
     .pBYTECNT_SIZE ( pBYTECNT_SIZE    ),
     .pADDR_WIDTH   ( pADDR_WIDTH      )
@@ -147,10 +152,16 @@ module abr_fpga_cw310_top
     .reg_addrvalid ( reg_addrvalid    )
   );
 
-  logic [ pADDR_WIDTH-1:0] buff_addr_a;
-  logic [A_DATA_WIDTH-1:0] buff_wdata_a;
-  logic                    buff_we_a;
-  logic [A_DATA_WIDTH-1:0] buff_rdata_a;
+  logic [      pADDR_WIDTH-1:0] buff_addr_a;
+  logic [     A_DATA_WIDTH-1:0] buff_wdata_a;
+  logic                         buff_we_a;
+  logic [     A_DATA_WIDTH-1:0] buff_rdata_a;
+
+  logic [CW_REG_DATA_WIDTH-1:0] abr_instr;
+  logic [CW_REG_DATA_WIDTH-1:0] dut_ctrl0;
+  logic [CW_REG_DATA_WIDTH-1:0] dut_ctrl1;
+  logic [CW_REG_DATA_WIDTH-1:0] dut_stat0;
+  logic [CW_REG_DATA_WIDTH-1:0] dut_stat1;
 
   abr_cw310_reg #(
     .pBYTECNT_SIZE  ( pBYTECNT_SIZE ),
@@ -167,16 +178,64 @@ module abr_fpga_cw310_top
     .reg_write      ( reg_write     ),
     .reg_addrvalid  ( reg_addrvalid ),
     // Unconnected — to be wired to DUT logic
-    .dut_ctrl0_o    (               ),
-    .dut_ctrl1_o    (               ),
-    .abr_instr_o    (               ),
-    .dut_stat0_i    ( '0            ),
-    .dut_stat1_i    ( '0            ),
+    .dut_ctrl0_o    ( dut_ctrl0     ),
+    .dut_ctrl1_o    ( dut_ctrl1     ),
+    .abr_instr_o    ( abr_instr     ),
+    .dut_stat0_i    ( dut_stat0     ),
+    .dut_stat1_i    ( dut_stat1     ),
     .buf_addr_o     ( buff_addr_a   ),
     .buf_wdata_o    ( buff_wdata_a  ),
     .buf_wr_o       ( buff_we_a     ),
     .buf_rdata_i    ( buff_rdata_a  )
   );
+
+  // ---------------------------------------------------------------------------
+  // ABR Instruction and Register Decode
+  // ---------------------------------------------------------------------------
+  
+  logic [   AHB_ADDR_WIDTH-1:0] m_xfer_b_addr;
+  logic [M_XFER_BLEN_WIDTH-1:0] m_xfer_b_len;
+  logic                         m_xfer_op;
+  logic                         m_xfer_start;
+  logic                         m_xfer_busy;
+  logic                         m_xfer_err;
+
+  logic                         dut_rstn_reg;
+
+  logic                         dut_rstn;
+  logic                         dut_busy;
+
+  abr_instr_decode #(
+  ) i_abr_instr_decode (
+    .abr_instr_i    ( abr_instr     ),
+    .m_xfer_b_addr_o( m_xfer_b_addr ),
+    .m_xfer_b_len_o ( m_xfer_b_len  ),
+    .m_xfer_op_o    ( m_xfer_op     )
+  );
+
+  ////////////
+  // CTRL 0 //
+  ////////////
+  assign dut_rstn_reg = dut_ctrl0[0];
+
+  ////////////
+  // CTRL 1 //
+  ////////////
+  assign m_xfer_start = dut_ctrl1[0]; // INSTR_RUN triggers start of memory transfer
+
+  ////////////
+  // STAT 0 //
+  ////////////
+  assign dut_stat0[   0] = dut_rstn;
+  assign dut_stat0[   1] = dut_busy;
+  assign dut_stat0[31:2] = '0;
+
+  ////////////
+  // STAT 1 //
+  ////////////
+  assign dut_stat1[   0] = m_xfer_busy;
+  assign dut_stat1[   1] = m_xfer_err;
+  assign dut_stat1[31:2] = '0;
 
   // ---------------------------------------------------------------------------
   // ABR Data Buffer
@@ -253,17 +312,15 @@ module abr_fpga_cw310_top
   logic [AHB_DATA_WIDTH-1:0] ahb_mgr_rdata;  // read data (valid when done_o & !write)
 
   abr_memory_transfer_controller #(
-    .ADDR_WIDTH  ( AHB_ADDR_WIDTH ),
-    .DATA_WIDTH  ( AHB_DATA_WIDTH ),
     .A_DATA_WIDTH( B_DATA_WIDTH   )
   ) abr_memory_transfer_controller (
     .clk_i    ( crypt_clk     ),
-    .rst_ni   ( reset_ext     ),
+    .rst_ni   ( rst_n         ),
     // controller interface
-    .start_i  ( '0            ),
-    .b_addr_i ( '0            ),
-    .b_len_i  ( '0            ),
-    .op_i     ( '0            ),
+    .start_i  ( m_xfer_start  ),
+    .b_addr_i ( m_xfer_b_addr ),
+    .b_len_i  ( m_xfer_b_len  ),
+    .op_i     ( m_xfer_op     ),
     // interface to mem mgr
     .a_req_o  ( mem_mgr_req   ),
     .a_write_o( mem_mgr_write ),
@@ -280,8 +337,8 @@ module abr_fpga_cw310_top
     .b_wdata_o( ahb_mgr_wdata ),
     .b_rdata_i( ahb_mgr_rdata ),
     .b_ready_i( ahb_mgr_ready ),
-    .busy_o   (  ),
-    .error_o  (  )
+    .busy_o   ( m_xfer_busy   ),
+    .error_o  ( m_xfer_err    )
   );
 
   // AHB-Lite manager port
@@ -301,7 +358,7 @@ module abr_fpga_cw310_top
     .AHB_DATA_WIDTH( AHB_DATA_WIDTH )
    ) abr_ahb_mgr (
     .clk_i      ( crypt_clk     ),
-    .rst_ni     ( reset_ext     ),
+    .rst_ni     ( rst_n         ),
     // Memory Transfer Controller Interface
     .req_i      ( ahb_mgr_req   ),
     .write_i    ( ahb_mgr_write ),
@@ -325,15 +382,32 @@ module abr_fpga_cw310_top
     .hrdata_i   ( ahb_hrdata    )
   );
 
+
+  // ---------------------------------------------------------------------------
+  // Reset Synchroniser for ABR
+  // ---------------------------------------------------------------------------
+  
+  // n-stage reset synchronizer
+  always_ff @(posedge crypt_clk or posedge reset_ext) begin
+    if (reset_ext) begin
+      dut_rstn_sync_ff <= '0; // Set all stages to 0 on reset
+    end else begin
+      dut_rstn_sync_ff <= {dut_rstn_sync_ff[ResetSyncStages-2:0], dut_rstn_reg}; // Shift in the async reset
+    end
+  end
+
+  assign dut_rstn = dut_rstn_sync_ff[ResetSyncStages-1];
+
   // ---------------------------------------------------------------------------
   // ABR Instance (DUT)
   // ---------------------------------------------------------------------------
+  
 
   /* ToDo: Create simulation version which reports received AHB values and 
           returns data following a request. */
   abr_fpga_top  abr_fpga_top (
     .clk_i        ( crypt_clk     ),
-    .rst_ni       ( reset_ext     ),
+    .rst_ni       ( dut_rstn      ),
     .haddr_i      ( ahb_haddr     ),
     .hwdata_i     ( ahb_hwdata    ),
     .hsel_i       ( ahb_hsel      ),
@@ -344,7 +418,7 @@ module abr_fpga_cw310_top
     .hresp_o      ( ahb_hresp     ),
     .hreadyout_o  ( ahb_hreadyout ),
     .hrdata_o     ( ahb_hrdata    ),
-    .busy_o       (               ),
+    .busy_o       ( dut_busy      ),
     .error_intr_o (               ),
     .notif_intr_o (               )
   );
