@@ -66,22 +66,26 @@ module ram_array
     ram_a_rdata_muxed = '0;
     ram_a_we          = '0;
 
-    unique case (ram_a_select)
+    case (ram_a_select)
       0: begin 
         ram_a_rdata_muxed   = a_rdata_concat[0];
-        ram_a_we[0] = we_a_i;
+        ram_a_we[0]       = we_a_i;
       end
       1: begin 
         ram_a_rdata_muxed = a_rdata_concat[1];
-        ram_a_we[1] = we_a_i;
+        ram_a_we[1]       = we_a_i;
       end
       2: begin 
         ram_a_rdata_muxed = a_rdata_concat[2];
-        ram_a_we[2] = we_a_i;
+        ram_a_we[2]       = we_a_i;
       end
       3: begin 
         ram_a_rdata_muxed = a_rdata_concat[3];
-        ram_a_we[3] = we_a_i;
+        ram_a_we[3]       = we_a_i;
+      end
+      default begin
+        ram_a_rdata_muxed = '0;
+        ram_a_we[3]       = '0;
       end
     endcase
 

@@ -19,7 +19,7 @@
 module abr_cw310_reg
   import abr_fpga_pkg::*;
 #(
-  parameter integer unsigned pBYTECNT_SIZE = 7,
+  parameter integer unsigned pBYTECNT_SIZE = 2,
   parameter integer unsigned pADDR_WIDTH   = 20
 ) (
   input  logic                                  reset_i,
@@ -89,8 +89,8 @@ module abr_cw310_reg
   logic [pADDR_WIDTH-1:0] buf_offset;
 
   assign full_byte_addr  = {reg_address, reg_bytecnt};
-  assign reg_idx         = reg_bytecnt[6:2];
-  assign byte_sel        = reg_bytecnt[1:0];
+  assign reg_idx         = full_byte_addr[6:2];
+  assign byte_sel        = full_byte_addr[1:0];
 
   assign page_sel        = reg_addrvalid && (reg_address == '0);
   assign buf_sel         = reg_addrvalid &&

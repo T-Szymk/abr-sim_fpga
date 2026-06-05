@@ -20,8 +20,7 @@ package tb_cw310_pkg;
   // ------------------------------------------------------------------------
 
   task automatic write_byte(
-    input  RegAddr_t       address,
-    input  ByteCnt_t       subbyte,
+    input  UsbAddr_t       address,
     input  UsbData_t       data,
     ref    logic           usb_clk,
     ref    UsbAddr_t       usb_addr,
@@ -30,8 +29,12 @@ package tb_cw310_pkg;
     ref    logic           usb_cen
   );
     begin
+      
+      RegAddr_t reg_addr = address[USB_ADDR_WIDTH-1:USB_BCOUNT_SIZE];
+      ByteCnt_t subbyte  = address[USB_BCOUNT_SIZE-1:0];
+
       @(posedge usb_clk);
-      usb_addr  = {address, subbyte};
+      usb_addr  = {reg_addr, subbyte};
       usb_wdata = data;
       usb_wrn   = 1'b0;
       @(posedge usb_clk);
@@ -46,8 +49,7 @@ package tb_cw310_pkg;
 
 
   task automatic read_byte(
-    input  RegAddr_t       address,
-    input  ByteCnt_t       subbyte,
+    input  UsbAddr_t       address,
     output UsbData_t       data,
     ref    logic           usb_clk,
     ref    UsbAddr_t       usb_addr,
@@ -56,8 +58,12 @@ package tb_cw310_pkg;
     ref    UsbData_t       usb_data
   );
     begin
+      
+      RegAddr_t reg_addr = address[USB_ADDR_WIDTH-1:USB_BCOUNT_SIZE];
+      ByteCnt_t subbyte  = address[USB_BCOUNT_SIZE-1:0];
+
       @(posedge usb_clk);
-      usb_addr = {address, subbyte};
+      usb_addr = {reg_addr, subbyte};
       @(posedge usb_clk);
       usb_rdn = 1'b0;
       usb_cen = 1'b0;
@@ -73,9 +79,8 @@ package tb_cw310_pkg;
 
 
   task automatic write_bytes(
-    input  logic     [  1:0] block,
     input  logic     [  7:0] bytes,
-    input  RegAddr_t         address,
+    input  UsbAddr_t         address,
     input  logic     [255:0] data,
     ref    logic             usb_clk,
     ref    UsbAddr_t         usb_addr,
@@ -86,9 +91,8 @@ package tb_cw310_pkg;
     begin
       for (int subbyte = 0; subbyte < int'(bytes); subbyte++) begin
         write_byte(
-          address, 
-          subbyte[USB_BCOUNT_SIZE-1:0], 
-          data[subbyte*8 +: 8],
+          address + UsbAddr_t'(subbyte),
+          data[(subbyte*8) +: 8],
           usb_clk, usb_addr, usb_wdata, usb_wrn, usb_cen
         );
       end
@@ -99,9 +103,8 @@ package tb_cw310_pkg;
 
 
   task automatic read_bytes(
-    input  logic     [  1:0] block,
     input  logic     [  7:0] bytes,
-    input  RegAddr_t         address,
+    input  UsbAddr_t         address,
     output logic     [255:0] data,
     ref    logic             usb_clk,
     ref    UsbAddr_t         usb_addr,
@@ -112,8 +115,7 @@ package tb_cw310_pkg;
     begin
       for (int subbyte = 0; subbyte < int'(bytes); subbyte++) begin
         read_byte(
-          address, 
-          subbyte[USB_BCOUNT_SIZE-1:0], 
+          address + UsbAddr_t'(subbyte),
           data[subbyte*8 +: 8],
           usb_clk, usb_addr, usb_rdn, usb_cen, usb_data);
       end

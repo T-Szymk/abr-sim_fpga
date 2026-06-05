@@ -30,14 +30,14 @@ module abr_mem_mgr
   // Request interface
   input  logic                          req_i,    // initiate a transfer
   input  logic                          write_i,  // 1 = write, 0 = read
-  input  logic [               2:0]     size_i,   // HSIZE: 000=8b 001=16b 010=32b 011=64b
-  input  logic [MEM_ADDR_WIDTH-1:0]     addr_i,
-  input  logic [MEM_DATA_WIDTH-1:0]     wdata_i,
+  input  logic [                  2:0]  size_i,   // HSIZE: 000=8b 001=16b 010=32b 011=64b
+  input  logic [   MEM_ADDR_WIDTH-1:0]  addr_i,
+  input  logic [   MEM_DATA_WIDTH-1:0]  wdata_i,
   output logic                          ready_o,  // manager ready for new request
 
   // Response interface (valid for one cycle when transfer completes)
   output logic                          done_o,   // transfer accepted by subordinate
-  output logic [MEM_DATA_WIDTH-1:0]     rdata_o,  // read data (valid when done_o & !write)
+  output logic [   MEM_DATA_WIDTH-1:0]  rdata_o,  // read data (valid when done_o & !write)
   output logic                          error_o,  // subordinate returned HRESP ERROR
 
   // Memory interface
@@ -61,7 +61,7 @@ module abr_mem_mgr
   /* Assertions */
   
   // Size must be valid and not exceed the data width
-  if (MEM_DATA_WIDTH != 64) begin : g_check_data_width
+  if (MEM_DATA_WIDTH != 32) begin : g_check_data_width
     initial begin
       $error("abr_mem_mgr currently only supports MEM_DATA_WIDTH of 64 bits");
       $finish;

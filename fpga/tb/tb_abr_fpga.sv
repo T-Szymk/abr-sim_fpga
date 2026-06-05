@@ -67,13 +67,19 @@ module tb_abr_fpga;
     usb_cen        = 1;
 
     // simulate reset 
-    tb_reset = 1;
-    #(USB_CLK_PERIOD*2);
-     tb_reset = 0;
-    #(USB_CLK_PERIOD*2);
-     tb_reset = 1;
+    tb_reset = 1'b0;
+    #(USB_CLK_PERIOD*5);
+    tb_reset = 1'b1;
 
     #(USB_CLK_PERIOD*10);
+
+    // lift DUT from reset
+    write_bytes(
+      16, 
+      CW310_ADDR_DUT_CTRL0, 
+      {32'd0, 32'd0, 32'd0, 32'd1},
+      usb_clk, usb_addr, usb_wdata, usb_wrn,usb_cen
+    );
     
   end
 

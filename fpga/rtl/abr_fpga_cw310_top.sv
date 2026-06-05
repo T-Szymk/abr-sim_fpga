@@ -35,6 +35,7 @@ module abr_fpga_cw310_top
   /* Signals and Logic */
 
   // Internal signal for reset
+  logic usb_reset;
   logic reset_ext;
   logic reset_int;
   logic rst_n;
@@ -45,6 +46,7 @@ module abr_fpga_cw310_top
   logic [25:0] debug_counter;
 
   logic [ResetSyncStages-1:0] fpga_rstn_sync_ff;
+  logic [ResetSyncStages-1:0] usb_rstn_sync_ff;
   logic [ResetSyncStages-1:0] dut_rstn_sync_ff;
 
   
@@ -88,6 +90,21 @@ module abr_fpga_cw310_top
 `endif
 
   // ---------------------------------------------------------------------------
+  // Reset Synchroniser for USB logic
+  // ---------------------------------------------------------------------------
+
+  // n-stage reset synchronizer
+  always_ff @(posedge clk_int or posedge reset_ext) begin
+    if (reset_ext) begin
+      usb_rstn_sync_ff <= '0; // Set all stages to 0 on reset
+    end else begin
+      usb_rstn_sync_ff <= {usb_rstn_sync_ff[ResetSyncStages-2:0], reset_int}; // Shift in the async reset
+    end
+  end
+
+  assign rst_n = usb_rstn_sync_ff[ResetSyncStages-1];
+
+  // ---------------------------------------------------------------------------
   // Reset Synchroniser for FPGA logic
   // ---------------------------------------------------------------------------
 
@@ -100,7 +117,7 @@ module abr_fpga_cw310_top
     end
   end
 
-  assign rst_n = fpga_rstn_sync_ff[ResetSyncStages-1];
+  assign usb_reset = fpga_rstn_sync_ff[ResetSyncStages-1];
 
   // ---------------------------------------------------------------------------
   // Debug Counter
@@ -113,7 +130,6 @@ module abr_fpga_cw310_top
     end
   end
   
-  logic                             usb_reset;
   logic                             usb_clk_buf;
   logic                             isout;
   logic [       USB_DATA_WIDTH-1:0] usb_dout;
@@ -128,7 +144,6 @@ module abr_fpga_cw310_top
   logic [   CLK_SETTINGS_WIDTH-1:0] clk_settings;
   logic                             crypt_clk;
 
-  assign usb_reset    = !reset_int; // Use inverted synchronized reset for USB logic
   assign USB_D        = isout ? usb_dout : 'Z;
   assign clk_settings = '0; // Use DIP switches for clock settings
 

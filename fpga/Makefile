@@ -23,7 +23,6 @@ FPGA_SV_FILES    = $(FPGA_SRC_DIR)/abr_fpga_pkg.sv                    \
                    $(FPGA_SRC_DIR)/abr_mem_mgr.sv                     \
                    $(FPGA_SRC_DIR)/abr_memory_transfer_controller.sv  \
                    $(FPGA_SRC_DIR)/abr_ram_array.sv                   \
-                   $(FPGA_SRC_DIR)/abr_top_wrapper_black_box.v        \
                    $(FPGA_SRC_DIR)/abr_top_wrapper.sv                 \
                    $(FPGA_SRC_DIR)/amd_tdp_bram.sv
 
@@ -202,10 +201,10 @@ ABR_SV_FILES     = ${ADAMSBRIDGE_ROOT}/src/abr_top/rtl/abr_config_defines.svh   
                    ${ADAMSBRIDGE_ROOT}/src/abr_top/rtl/abr_top.sv                             \
                    ${ADAMSBRIDGE_ROOT}/src/abr_top/rtl/abr_reg.sv
 
-CW_SRC_FILES     = $(CW310_DIR)/fpga/aes/hdl/cw310_usb_reg_fe.v
+CW_SRC_FILES     = $(CW310_DIR)/fpga/aes/hdl/cw310_usb_reg_fe.v \
+                   $(CW310_DIR)/fpga/aes/hdl/clocks.v
 
-FPGA_TB_SV_FILES = $(FPGA_SRC_DIR)/abr_fpga_pkg.sv \
-                   $(FPGA_TB_DIR)/tb_cw310_pkg.sv  \
+FPGA_TB_SV_FILES = $(FPGA_TB_DIR)/tb_cw310_pkg.sv  \
 									 $(FPGA_TB_DIR)/tb_abr_fpga.sv   \
 									 $(FPGA_TB_DIR)/abr_fpga_top_sim.sv
 
