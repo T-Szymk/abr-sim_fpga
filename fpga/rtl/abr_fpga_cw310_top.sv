@@ -30,7 +30,7 @@ module abr_fpga_cw310_top
 
   /* Constants and type definitions */
 
-  localparam integer unsigned ResetSyncStages = 3;
+  localparam integer unsigned SyncStages = 3;
 
   /* Signals and Logic */
 
@@ -48,9 +48,9 @@ module abr_fpga_cw310_top
   logic [25:0] dbg_cntr_fpga;
   logic [25:0] dbg_cntr_usb;
 
-  logic [ResetSyncStages-1:0] fpga_rstn_sync_ff;
-  logic [ResetSyncStages-1:0] usb_rstn_sync_ff;
-  logic [ResetSyncStages-1:0] dut_rstn_sync_ff;
+  logic [SyncStages-1:0] fpga_rstn_sync_ff;
+  logic [SyncStages-1:0] usb_rstn_sync_ff;
+  logic [SyncStages-1:0] dut_rstn_sync_ff;
 
   
 
@@ -111,11 +111,11 @@ module abr_fpga_cw310_top
     if (reset_ext) begin
       usb_rstn_sync_ff <= '1; // Set all stages to 0 on reset
     end else begin
-      usb_rstn_sync_ff <= {usb_rstn_sync_ff[ResetSyncStages-2:0], ~reset_int}; // Shift in the async reset
+      usb_rstn_sync_ff <= {usb_rstn_sync_ff[SyncStages-2:0], ~reset_int}; // Shift in the async reset
     end
   end
 
-  assign usb_reset = usb_rstn_sync_ff[ResetSyncStages-1];
+  assign usb_reset = usb_rstn_sync_ff[SyncStages-1];
 
   // ---------------------------------------------------------------------------
   // Debug Counter for USB logic
@@ -137,11 +137,11 @@ module abr_fpga_cw310_top
     if (reset_ext) begin
       fpga_rstn_sync_ff <= '0; // Set all stages to 0 on reset
     end else begin
-      fpga_rstn_sync_ff <= {fpga_rstn_sync_ff[ResetSyncStages-2:0], reset_int}; // Shift in the async reset
+      fpga_rstn_sync_ff <= {fpga_rstn_sync_ff[SyncStages-2:0], reset_int}; // Shift in the async reset
     end
   end
 
-  assign rst_n = fpga_rstn_sync_ff[ResetSyncStages-1];
+  assign rst_n = fpga_rstn_sync_ff[SyncStages-1];
 
   // ---------------------------------------------------------------------------
   // Debug Counter for FPGA logic
@@ -225,30 +225,43 @@ module abr_fpga_cw310_top
   logic [CW_REG_DATA_WIDTH-1:0] dut_stat0;
   logic [CW_REG_DATA_WIDTH-1:0] dut_stat1;
 
+  (* ASYNC_REG = "TRUE" *) logic [SyncStages-1:0][CW_REG_DATA_WIDTH-1:0] dut_ctrl0_ff;
+  (* ASYNC_REG = "TRUE" *) logic [SyncStages-1:0][CW_REG_DATA_WIDTH-1:0] dut_ctrl1_ff;
+  (* ASYNC_REG = "TRUE" *) logic [SyncStages-1:0][CW_REG_DATA_WIDTH-1:0] abr_instr_ff;
+
+  (* ASYNC_REG = "TRUE" *) logic [SyncStages-1:0][CW_REG_DATA_WIDTH-1:0] dut_stat0_ff;
+  (* ASYNC_REG = "TRUE" *) logic [SyncStages-1:0][CW_REG_DATA_WIDTH-1:0] dut_stat1_ff;
+
+  logic [CW_REG_DATA_WIDTH-1:0] abr_instr_sync;
+  logic [CW_REG_DATA_WIDTH-1:0] dut_ctrl0_sync;
+  logic [CW_REG_DATA_WIDTH-1:0] dut_ctrl1_sync;
+  logic [CW_REG_DATA_WIDTH-1:0] dut_stat0_sync;
+  logic [CW_REG_DATA_WIDTH-1:0] dut_stat1_sync;
+
   abr_cw310_reg #(
     .pBYTECNT_SIZE  ( pBYTECNT_SIZE ),
     .pADDR_WIDTH    ( pADDR_WIDTH   )
   ) i_cw_reg_abr (
     // USB register interface
-    .reset_i        ( usb_reset     ),
-    .usb_clk        ( usb_clk_buf   ),
-    .reg_address    ( reg_address   ),
-    .reg_bytecnt    ( reg_bytecnt   ),
-    .read_data      ( read_data     ),
-    .write_data     ( write_data    ),
-    .reg_read       ( reg_read      ),
-    .reg_write      ( reg_write     ),
-    .reg_addrvalid  ( reg_addrvalid ),
+    .reset_i        ( usb_reset      ),
+    .usb_clk        ( usb_clk_buf    ),
+    .reg_address    ( reg_address    ),
+    .reg_bytecnt    ( reg_bytecnt    ),
+    .read_data      ( read_data      ),
+    .write_data     ( write_data     ),
+    .reg_read       ( reg_read       ),
+    .reg_write      ( reg_write      ),
+    .reg_addrvalid  ( reg_addrvalid  ),
     // Unconnected — to be wired to DUT logic
-    .dut_ctrl0_o    ( dut_ctrl0     ),
-    .dut_ctrl1_o    ( dut_ctrl1     ),
-    .abr_instr_o    ( abr_instr     ),
-    .dut_stat0_i    ( dut_stat0     ),
-    .dut_stat1_i    ( dut_stat1     ),
-    .buf_addr_o     ( buff_addr_a   ),
-    .buf_wdata_o    ( buff_wdata_a  ),
-    .buf_wr_o       ( buff_we_a     ),
-    .buf_rdata_i    ( buff_rdata_a  )
+    .dut_ctrl0_o    ( dut_ctrl0      ),
+    .dut_ctrl1_o    ( dut_ctrl1      ),
+    .abr_instr_o    ( abr_instr      ),
+    .dut_stat0_i    ( dut_stat0_sync ),
+    .dut_stat1_i    ( dut_stat1_sync ),
+    .buf_addr_o     ( buff_addr_a    ),
+    .buf_wdata_o    ( buff_wdata_a   ),
+    .buf_wr_o       ( buff_we_a      ),
+    .buf_rdata_i    ( buff_rdata_a   )
   );
 
   // ---------------------------------------------------------------------------
@@ -259,6 +272,7 @@ module abr_fpga_cw310_top
   logic [M_XFER_BLEN_WIDTH-1:0] m_xfer_b_len;
   logic                         m_xfer_op;
   logic                         m_xfer_start;
+  logic                         m_xfer_start_pulse;
   logic                         m_xfer_busy;
   logic                         m_xfer_err;
 
@@ -266,23 +280,50 @@ module abr_fpga_cw310_top
 
   logic                         dut_busy;  
 
-  abr_instr_decode #(
-  ) i_abr_instr_decode (
-    .abr_instr_i    ( abr_instr     ),
-    .m_xfer_b_addr_o( m_xfer_b_addr ),
-    .m_xfer_b_len_o ( m_xfer_b_len  ),
-    .m_xfer_op_o    ( m_xfer_op     )
-  );
+  /////////////////////////
+  // CDC SYNCHRONISATION //
+  /////////////////////////
+
+  // n-stage synchronizer from USB -> PLL domains
+  always_ff @(posedge crypt_clk or posedge rst_n) begin
+    if (~rst_n) begin
+      dut_ctrl0_ff <= '0; // Set all stages to 0 on reset
+      dut_ctrl1_ff <= '0;
+      abr_instr_ff <= '0;
+    end else begin
+      dut_ctrl0_ff <= {dut_ctrl0_ff[SyncStages-2:0], dut_ctrl0}; // Shift in the async reset
+      dut_ctrl1_ff <= {dut_ctrl1_ff[SyncStages-2:0], dut_ctrl1};
+      abr_instr_ff <= {abr_instr_ff[SyncStages-2:0], abr_instr};
+    end
+  end
+
+  assign abr_instr_sync = abr_instr_ff[SyncStages-1];
+  assign dut_ctrl0_sync = dut_ctrl0_ff[SyncStages-1];
+  assign dut_ctrl1_sync = dut_ctrl1_ff[SyncStages-1];
+
+  // n-stage synchronizer from PLL -> USB domains
+  always_ff @(posedge usb_clk or posedge usb_reset) begin
+    if (usb_reset) begin
+      dut_stat0_ff <= '0; // Set all stages to 0 on reset
+      dut_stat1_ff <= '0;
+    end else begin
+      dut_stat0_ff <= {dut_stat0_ff[SyncStages-2:0], dut_stat0}; // Shift in the async reset
+      dut_stat1_ff <= {dut_stat1_ff[SyncStages-2:0], dut_stat1};
+    end
+  end
+
+  assign dut_stat0_sync = dut_stat0_ff[SyncStages-1];
+  assign dut_stat1_sync = dut_stat1_ff[SyncStages-1];
 
   ////////////
   // CTRL 0 //
   ////////////
-  assign dut_rstn_reg = dut_ctrl0[0];
+  assign dut_rstn_reg = dut_ctrl0_sync[0];
 
   ////////////
   // CTRL 1 //
   ////////////
-  assign m_xfer_start = dut_ctrl1[0]; // INSTR_RUN triggers start of memory transfer
+  assign m_xfer_start = dut_ctrl1_sync[0]; // INSTR_RUN triggers start of memory transfer
 
   ////////////
   // STAT 0 //
@@ -300,6 +341,17 @@ module abr_fpga_cw310_top
   assign dut_stat1[   0] = m_xfer_busy;
   assign dut_stat1[   1] = m_xfer_err;
   assign dut_stat1[31:2] = '0;
+
+  // ---------------------------------------------------------------------------
+  // ABR Instruction Decoder
+  // ---------------------------------------------------------------------------
+  abr_instr_decode #(
+  ) i_abr_instr_decode (
+    .abr_instr_i    ( abr_instr_sync ),
+    .m_xfer_b_addr_o( m_xfer_b_addr  ),
+    .m_xfer_b_len_o ( m_xfer_b_len   ),
+    .m_xfer_op_o    ( m_xfer_op      )
+  );
 
   // ---------------------------------------------------------------------------
   // ABR Data Buffer
@@ -375,34 +427,41 @@ module abr_fpga_cw310_top
   // Response interface (valid for one cycle when transfer completes)
   logic [AHB_DATA_WIDTH-1:0] ahb_mgr_rdata;  // read data (valid when done_o & !write)
 
+  abr_edge_to_pulse i_abr_edge_to_pulse (
+    .clk_i  ( crypt_clk          ),
+    .rstn_i ( rst_n              ),
+    .edge_i ( m_xfer_start       ),
+    .pulse_o( m_xfer_start_pulse )
+  );
+
   abr_memory_transfer_controller #(
     .A_DATA_WIDTH( B_DATA_WIDTH   )
   ) abr_memory_transfer_controller (
-    .clk_i    ( crypt_clk     ),
-    .rst_ni   ( rst_n         ),
+    .clk_i    ( crypt_clk          ),
+    .rst_ni   ( rst_n              ),
     // controller interface
-    .start_i  ( m_xfer_start  ),
-    .b_addr_i ( m_xfer_b_addr ),
-    .b_len_i  ( m_xfer_b_len  ),
-    .op_i     ( m_xfer_op     ),
+    .start_i  ( m_xfer_start_pulse ),
+    .b_addr_i ( m_xfer_b_addr      ),
+    .b_len_i  ( m_xfer_b_len       ),
+    .op_i     ( m_xfer_op          ),
     // interface to mem mgr
-    .a_req_o  ( mem_mgr_req   ),
-    .a_write_o( mem_mgr_write ),
-    .a_size_o ( mem_mgr_size  ),
-    .a_addr_o ( mem_mgr_addr  ),
-    .a_wdata_o( mem_mgr_wdata ),
-    .a_rdata_i( mem_mgr_rdata ),
-    .a_ready_i( mem_mgr_ready ),
+    .a_req_o  ( mem_mgr_req        ),
+    .a_write_o( mem_mgr_write      ),
+    .a_size_o ( mem_mgr_size       ),
+    .a_addr_o ( mem_mgr_addr       ),
+    .a_wdata_o( mem_mgr_wdata      ),
+    .a_rdata_i( mem_mgr_rdata      ),
+    .a_ready_i( mem_mgr_ready      ),
     // interface to AHB manager
-    .b_req_o  ( ahb_mgr_req   ),
-    .b_write_o( ahb_mgr_write ),
-    .b_size_o ( ahb_mgr_size  ),
-    .b_addr_o ( ahb_mgr_addr  ),
-    .b_wdata_o( ahb_mgr_wdata ),
-    .b_rdata_i( ahb_mgr_rdata ),
-    .b_ready_i( ahb_mgr_ready ),
-    .busy_o   ( m_xfer_busy   ),
-    .error_o  ( m_xfer_err    )
+    .b_req_o  ( ahb_mgr_req        ),
+    .b_write_o( ahb_mgr_write      ),
+    .b_size_o ( ahb_mgr_size       ),
+    .b_addr_o ( ahb_mgr_addr       ),
+    .b_wdata_o( ahb_mgr_wdata      ),
+    .b_rdata_i( ahb_mgr_rdata      ),
+    .b_ready_i( ahb_mgr_ready      ),
+    .busy_o   ( m_xfer_busy        ),
+    .error_o  ( m_xfer_err         )
   );
 
   // AHB-Lite manager port
@@ -456,11 +515,11 @@ module abr_fpga_cw310_top
     if (reset_ext) begin
       dut_rstn_sync_ff <= '0; // Set all stages to 0 on reset
     end else begin
-      dut_rstn_sync_ff <= {dut_rstn_sync_ff[ResetSyncStages-2:0], dut_rstn_reg}; // Shift in the async reset
+      dut_rstn_sync_ff <= {dut_rstn_sync_ff[SyncStages-2:0], dut_rstn_reg}; // Shift in the async reset
     end
   end
 
-  assign dut_rstn = dut_rstn_sync_ff[ResetSyncStages-1];
+  assign dut_rstn = dut_rstn_sync_ff[SyncStages-1];
 
   // ---------------------------------------------------------------------------
   // ABR Instance (DUT)

@@ -60,7 +60,8 @@ package abr_fpga_pkg;
     // -----------------------------------------------------------------------
     // CW Register sizing parameters
     // -----------------------------------------------------------------------
-    localparam int unsigned CW_REG_DATA_WIDTH = 32;
+    localparam int unsigned CW_REG_DATA_WIDTH       = 32;
+    localparam int unsigned CW_REG_DATA_WIDTH_BYTES = CW_REG_DATA_WIDTH / 8;
 
     // -----------------------------------------------------------------------
     // ABR Instruction Parameters
@@ -80,17 +81,17 @@ package abr_fpga_pkg;
     // reg_bytecnt[6:2] selects the register; reg_bytecnt[1:0] selects the
     // byte within the 32-bit register.
     // -----------------------------------------------------------------------
-    localparam logic [6:0] CW310_ADDR_DUT_CTRL0 = 7'h00;
-    localparam logic [6:0] CW310_ADDR_DUT_CTRL1 = 7'h04;
-    localparam logic [6:0] CW310_ADDR_DUT_STAT0 = 7'h08;
-    localparam logic [6:0] CW310_ADDR_DUT_STAT1 = 7'h0C;
-    localparam logic [6:0] CW310_ADDR_ABR_INSTR = 7'h10;
+    localparam logic [USB_ADDR_WIDTH-1:0] CW310_ADDR_DUT_CTRL0 = 'h00;
+    localparam logic [USB_ADDR_WIDTH-1:0] CW310_ADDR_DUT_CTRL1 = 'h04;
+    localparam logic [USB_ADDR_WIDTH-1:0] CW310_ADDR_DUT_STAT0 = 'h08;
+    localparam logic [USB_ADDR_WIDTH-1:0] CW310_ADDR_DUT_STAT1 = 'h0C;
+    localparam logic [USB_ADDR_WIDTH-1:0] CW310_ADDR_ABR_INSTR = 'h10;
 
     // ABR_DBUFF — 2048-byte data buffer, forwarded to an external module.
     // Access within this range is NOT stored here; writes are forwarded as a
     // pulsed strobe and reads are returned from an external input port.
-    localparam logic [19:0] CW310_ADDR_ABR_DBUFF_BASE = 20'h0100;  // inclusive
-    localparam logic [19:0] CW310_ADDR_ABR_DBUFF_END  = 20'h0900;  // exclusive
+    localparam logic [USB_ADDR_WIDTH-1:0] CW310_ADDR_ABR_DBUFF_BASE = 'h0100;  // inclusive
+    localparam logic [USB_ADDR_WIDTH-1:0] CW310_ADDR_ABR_DBUFF_END  = 'h0900;  // exclusive
     localparam int unsigned CW310_ABR_DBUFF_ADDR_W    =            // = 11
         $clog2(CW310_ADDR_ABR_DBUFF_END - CW310_ADDR_ABR_DBUFF_BASE);
 

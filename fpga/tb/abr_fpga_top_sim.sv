@@ -78,9 +78,9 @@ module abr_fpga_top_sim
   assign hresp_o      = 1'b0;
   assign hreadyout_o  = 1'b1;
 
-  // Return the registered request address, zero-extended to 64 bits.
+  // Return the registered request address, repeated to account for word alignment 
   assign hrdata_o = pending_read_q
-                    ? AHB_DATA_WIDTH'({32'b0, haddr_q})
+                    ? AHB_DATA_WIDTH'({haddr_q, haddr_q})
                     : '0;
 
   // -------------------------------------------------------------------------

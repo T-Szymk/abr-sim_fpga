@@ -18,6 +18,7 @@ module tb_abr_fpga;
   logic                      usb_clk;
   logic                      usb_clk_enable;
   wire  [USB_DATA_WIDTH-1:0] usb_data;
+  logic [USB_DATA_WIDTH-1:0] usb_data_var;
   logic [USB_DATA_WIDTH-1:0] usb_wdata;
   logic [USB_ADDR_WIDTH-1:0] usb_addr;
   logic                      usb_rdn;
@@ -55,6 +56,9 @@ module tb_abr_fpga;
   // -------------------------------------------------------------------------
 
   initial begin
+
+    logic dut_busy = 1'b1;
+    logic [3:0][7:0] read_data;
     
     $display("[%0t ns] TB : Starting tb_abr_fpga testbench", $realtime/1ns);
 
@@ -74,11 +78,49 @@ module tb_abr_fpga;
     #(USB_CLK_PERIOD*10);
 
     // lift DUT from reset
-    write_bytes(
-      16, 
+    write_word(
       CW310_ADDR_DUT_CTRL0, 
-      {32'd0, 32'd0, 32'd0, 32'd1},
+      CwRegWord_t'('h1),
       usb_clk, usb_addr, usb_wdata, usb_wrn,usb_cen
+    );
+
+    // read ABR status register via data buffer
+    // write READ instr. to INSTR reg
+    write_word(
+      CW310_ADDR_ABR_INSTR, 
+      CwRegWord_t'('h00140010),
+      usb_clk, usb_addr, usb_wdata, usb_wrn,usb_cen
+    );
+
+    // commit INSTR
+    write_word(
+      CW310_ADDR_DUT_CTRL1, 
+      CwRegWord_t'('h1),
+      usb_clk, usb_addr, usb_wdata, usb_wrn,usb_cen
+    );
+
+    // wait for transfer busy flag to clear
+    while(1) begin
+    read_word(
+      CW310_ADDR_DUT_STAT1, 
+      read_data,
+      usb_clk, usb_addr, usb_rdn, usb_cen,usb_data_var
+    );
+
+    dut_busy = read_data[0][1];
+
+    if(dut_busy == 1'b0) 
+      break;
+
+    end
+
+    $display("READ_TRANSFER COMPLETE");
+
+    // Read data back from Data Buffer
+    read_word(
+      CW310_ADDR_ABR_DBUFF_BASE, 
+      read_data,
+      usb_clk, usb_addr, usb_rdn, usb_cen,usb_data_var
     );
     
   end
@@ -103,7 +145,7 @@ module tb_abr_fpga;
 
 `ifdef VERILATOR
     initial begin
-        $dumpfile("vtrace.vcd");
+        $dumpfile("vtrace.fst");
         $dumpvars();
     end
 `endif 
@@ -116,8 +158,9 @@ module tb_abr_fpga;
   assign tb_k16_sel  = 1'b0; // enables output clock
   assign usb_trigger = 1'b0; // unused - normally used to drive functions when usb clock is disabled
 
-  assign read_select = (usb_wrn == 1'b0) ? 1'b0 : 1'b1;
-  assign usb_data    = read_select ? 'Z : usb_wdata;
+  assign read_select  = (usb_wrn == 1'b0) ? 1'b0 : 1'b1;
+  assign usb_data     = read_select ? 'Z : usb_wdata;
+  assign usb_data_var = usb_data;
 
   wire #1 usb_rdn_dly = usb_rdn;
   wire #1 usb_wrn_dly = usb_wrn;

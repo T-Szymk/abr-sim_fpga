@@ -56,7 +56,20 @@ module abr_mem_mgr
   assign ready_o = 1'b1;                                   // Always ready to accept requests
   assign done_o  = req_i;                                  // Transfer completes in the same cycle as request
   assign error_o = 1'b0;                                   // No error conditions in this simple manager
-  assign we_o    = (req_i & write_i) ? (1 << size_i) : '0; // Generate byte enables based on size
+
+  // Generate one-hot byte enables based on size
+  always_comb begin
+    we_o = '0;
+    if (req_i & write_i) begin
+      case (size_e'(size_i)) 
+        SIZE_8B  : we_o = 'h1; 
+        SIZE_16B : we_o = 'h3;
+        SIZE_32B : we_o = 'hF;
+        SIZE_64B : we_o = '0; // not supported
+        default  : we_o = '0; 
+      endcase
+    end
+  end
 
   /* Assertions */
   
