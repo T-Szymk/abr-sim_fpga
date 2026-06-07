@@ -24,3 +24,10 @@
 +incdir+adams-bridge/src/compress/rtl
 +incdir+adams-bridge/src/decompress/rtl
 +incdir+fpga/cw310-bergen-board/fpga/aes/hdl/
+
++define+TECH_SPECIFIC_ICG
++define+VERILATOR
++define+SIMULATION
++define+__ICARUS__
++define+USE_ABR_SIM_MODEL
++define+VERBOSE
