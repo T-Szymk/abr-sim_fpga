@@ -30,7 +30,7 @@
 | Bits     | Identifier    | Access | Reset | Notes               |
 | :------- | :----------   | :----- | :---- | :---                |
 | \[31:2\] | _reserved_    | \-     | \-    | \-                  |
-| \[1\]    | DUR_BUSY      | R/W    | 0x0   | Busy status of ABR  |
+| \[1\]    | DUT_BUSY      | R/W    | 0x0   | Busy status of ABR  |
 | \[0\]    | DUT_RST_STAT  | R/W    | 0x0   | Reset status of ABR |
 
 #### DUT_STAT1
