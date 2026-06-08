@@ -336,11 +336,11 @@ V_INCLUDES  = $(INC_DIRS)
 V_BUILD_DIR = $(BUILD_DIR)/verilator_build
 
 V_DEFINES   = -DTECH_SPECIFIC_ICG \
-							-DVERILATOR \
-							-DSIMULATION \
-							-D__ICARUS__ \
-							-DUSE_ABR_SIM_MODEL \
-							-DVERBOSE
+			  -DVERILATOR \
+			  -DSIMULATION \
+			  -D__ICARUS__ \
+			  -DUSE_ABR_SIM_MODEL \
+			  -DVERBOSE
 
 # Verilator flags
 VFLAGS := \

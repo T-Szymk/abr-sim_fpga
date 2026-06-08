@@ -41,7 +41,8 @@ module abr_fpga_cw310_top
   logic rst_n;     // reset to FPGA logic
   logic dut_rstn;  // reset to ABR
 
-  logic clk_int;   // output from mmcm
+  logic clk_int;     // output from mmcm
+  logic usb_clk_buf; // buffered USB clocks
 
 
   // Debug counter for LED toggling
@@ -107,7 +108,7 @@ module abr_fpga_cw310_top
   // ---------------------------------------------------------------------------
 
   // n-stage ACTIVE-HIGH reset synchronizer
-  always_ff @(posedge usb_clk or posedge reset_ext) begin
+  always_ff @(posedge usb_clk_buf or posedge reset_ext) begin
     if (reset_ext) begin
       usb_rstn_sync_ff <= '1; // Set all stages to 0 on reset
     end else begin
@@ -120,7 +121,7 @@ module abr_fpga_cw310_top
   // ---------------------------------------------------------------------------
   // Debug Counter for USB logic
   // ---------------------------------------------------------------------------
-  always_ff @(posedge usb_clk or posedge usb_reset) begin
+  always_ff @(posedge usb_clk_buf or posedge usb_reset) begin
     if (usb_reset) begin
       dbg_cntr_usb <= 0;
     end else begin
@@ -154,7 +155,6 @@ module abr_fpga_cw310_top
     end
   end
   
-  logic                             usb_clk_buf;
   logic                             isout;
   logic [       USB_DATA_WIDTH-1:0] usb_dout;
 
@@ -285,7 +285,7 @@ module abr_fpga_cw310_top
   /////////////////////////
 
   // n-stage synchronizer from USB -> PLL domains
-  always_ff @(posedge crypt_clk or posedge rst_n) begin
+  always_ff @(posedge crypt_clk or negedge rst_n) begin
     if (~rst_n) begin
       dut_ctrl0_ff <= '0; // Set all stages to 0 on reset
       dut_ctrl1_ff <= '0;
@@ -302,7 +302,7 @@ module abr_fpga_cw310_top
   assign dut_ctrl1_sync = dut_ctrl1_ff[SyncStages-1];
 
   // n-stage synchronizer from PLL -> USB domains
-  always_ff @(posedge usb_clk or posedge usb_reset) begin
+  always_ff @(posedge usb_clk_buf or posedge usb_reset) begin
     if (usb_reset) begin
       dut_stat0_ff <= '0; // Set all stages to 0 on reset
       dut_stat1_ff <= '0;

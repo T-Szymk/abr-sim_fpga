@@ -154,14 +154,20 @@ set ABR_SV_FILES " \
 add_files -norecurse -scan_for_includes ${ABR_SV_FILES};
 
 set FPGA_FILES " \
-  ${FPGA_SRC_DIR}/abr_fpga_pkg.sv             \
-  ${FPGA_SRC_DIR}/abr_fpga_pkg.sv             \
-  ${FPGA_SRC_DIR}/abr_mem_fpga.sv             \
-  ${FPGA_SRC_DIR}/abr_ahb_mgr.sv              \
-  ${FPGA_SRC_DIR}/abr_mem_if_pack.sv          \
-  ${FPGA_SRC_DIR}/abr_top_wrapper_black_box.v \
-  ${FPGA_SRC_DIR}/abr_fpga_top.sv             \
-  ${FPGA_SRC_DIR}/abr_fpga_${BOARD}_top.sv    \
+  ${FPGA_SRC_DIR}/abr_fpga_pkg.sv                   \
+  ${FPGA_SRC_DIR}/abr_ahb_mgr.sv                    \
+  ${FPGA_SRC_DIR}/abr_cw310_reg.sv                  \
+  ${FPGA_SRC_DIR}/abr_edge_to_pulse.sv              \
+  ${FPGA_SRC_DIR}/abr_fpga_cw310_top.sv             \
+  ${FPGA_SRC_DIR}/abr_fpga_top.sv                   \
+  ${FPGA_SRC_DIR}/abr_instr_decode.sv               \
+  ${FPGA_SRC_DIR}/abr_mem_fpga.sv                   \
+  ${FPGA_SRC_DIR}/abr_mem_if_pack.sv                \
+  ${FPGA_SRC_DIR}/abr_mem_mgr.sv                    \
+  ${FPGA_SRC_DIR}/abr_memory_transfer_controller.sv \
+  ${FPGA_SRC_DIR}/abr_ram_array.sv                  \
+  ${FPGA_SRC_DIR}/abr_top_wrapper_black_box.v       \
+  ${FPGA_SRC_DIR}/amd_tdp_bram.sv                   \
 "
 
 add_files -norecurse -scan_for_includes ${FPGA_FILES};
@@ -209,10 +215,7 @@ if { ${BOARD} == "cw310" } {
     set CW_FPGA_SRC_DIR [file normalize "${CURR_DIR}/cw310-bergen-board/fpga/aes/hdl"]
 
     set CW_FPGA_V_FILES " \
-      ${CW_FPGA_SRC_DIR}/cdc_pulse.v        \
       ${CW_FPGA_SRC_DIR}/clocks.v           \
-      ${CW_FPGA_SRC_DIR}/cw310_reg_aes.v    \
-      ${CW_FPGA_SRC_DIR}/cw310_top.v        \
       ${CW_FPGA_SRC_DIR}/cw310_usb_reg_fe.v \
     "
 
