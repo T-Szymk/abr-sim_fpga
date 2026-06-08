@@ -58,7 +58,7 @@ module tb_abr_fpga;
   initial begin
 
     logic dut_busy = 1'b1;
-    logic [3:0][7:0] read_data;
+    CwRegWord_t read_data;
     
     $display("[%0t ns] TB : Starting tb_abr_fpga testbench", $realtime/1ns);
 
@@ -114,13 +114,115 @@ module tb_abr_fpga;
 
     end
 
-    $display("READ_TRANSFER COMPLETE");
+    $display("\nREAD_TRANSFER COMPLETE\n");
+
+    // clear INSTR commit reg
+    write_word(
+      CW310_ADDR_DUT_CTRL1, 
+      CwRegWord_t'('h0),
+      usb_clk, usb_addr, usb_wdata, usb_wrn,usb_cen
+    );
 
     // Read data back from Data Buffer
     read_word(
       CW310_ADDR_ABR_DBUFF_BASE, 
       read_data,
       usb_clk, usb_addr, usb_rdn, usb_cen,usb_data_var
+    );
+    
+    for (int unsigned i = 0; i < 16; i++) begin
+      // write dummy words to ABR
+      write_word(
+        CW310_ADDR_ABR_DBUFF_BASE + USB_ADDR_WIDTH'(i*4), 
+        CwRegWord_t'({16'hDEAD, 16'(i)}),
+        usb_clk, usb_addr, usb_wdata, usb_wrn,usb_cen
+      );
+    end
+
+    // write WRITE instr. to INSTR reg
+    write_word(
+      CW310_ADDR_ABR_INSTR, 
+      CwRegWord_t'('h0058_010_1),
+      usb_clk, usb_addr, usb_wdata, usb_wrn,usb_cen
+    );
+
+    // commit INSTR
+    write_word(
+      CW310_ADDR_DUT_CTRL1, 
+      CwRegWord_t'('h1),
+      usb_clk, usb_addr, usb_wdata, usb_wrn,usb_cen
+    );
+
+    // wait for transfer busy flag to clear
+    while(1) begin
+    read_word(
+      CW310_ADDR_DUT_STAT1, 
+      read_data,
+      usb_clk, usb_addr, usb_rdn, usb_cen,usb_data_var
+    );
+
+    dut_busy = read_data[0][1];
+
+    if(dut_busy == 1'b0) 
+      break;
+
+    end
+
+    $display("\nMULTI WRITE_TRANSFER COMPLETE\n");
+
+    // clear INSTR commit reg
+    write_word(
+      CW310_ADDR_DUT_CTRL1, 
+      CwRegWord_t'('h0),
+      usb_clk, usb_addr, usb_wdata, usb_wrn,usb_cen
+    );
+
+    // write READ instr. to INSTR reg
+    write_word(
+      CW310_ADDR_ABR_INSTR, 
+      CwRegWord_t'('h0058_010_0),
+      usb_clk, usb_addr, usb_wdata, usb_wrn,usb_cen
+    );
+
+    // commit INSTR
+    write_word(
+      CW310_ADDR_DUT_CTRL1, 
+      CwRegWord_t'('h1),
+      usb_clk, usb_addr, usb_wdata, usb_wrn,usb_cen
+    );
+
+    // wait for transfer busy flag to clear
+    while(1) begin
+    read_word(
+      CW310_ADDR_DUT_STAT1, 
+      read_data,
+      usb_clk, usb_addr, usb_rdn, usb_cen,usb_data_var
+    );
+
+    dut_busy = read_data[0][1];
+
+    if(dut_busy == 1'b0) 
+      break;
+
+    end
+
+    for (int unsigned i = 0; i < 16; i++) begin
+      // read dummy words from BUFF
+      read_word(
+        CW310_ADDR_ABR_DBUFF_BASE + USB_ADDR_WIDTH'(i*4), 
+        read_data,
+        usb_clk, usb_addr, usb_rdn, usb_cen,usb_data_var
+      );
+      $display("[%0t] TB : Read 0x%8H from DBUFF", $realtime/1ns, read_data);
+    end
+
+    $display("\nMULTI READ_TRANSFER COMPLETE\n");
+
+    // clear INSTR commit reg
+    write_word(
+      CW310_ADDR_DUT_CTRL1, 
+      CwRegWord_t'('h0),
+      usb_clk, usb_addr, usb_wdata, usb_wrn,usb_cen
     );
     
   end

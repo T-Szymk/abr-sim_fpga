@@ -61,14 +61,17 @@ module abr_fpga_top_sim
 
   logic [AHB_ADDR_WIDTH-1:0] haddr_q;
   logic                      pending_read_q; // data phase carries a read
+  logic                      pending_write_q; // data phase carries a write
 
   always_ff @(posedge clk_i or negedge rst_ni) begin
     if (!rst_ni) begin
-      haddr_q       <= '0;
-      pending_read_q <= 1'b0;
+      haddr_q         <= '0;
+      pending_read_q  <= 1'b0;
+      pending_write_q <= 1'b0;
     end else if (hready_i) begin
-      haddr_q        <= haddr_i;
-      pending_read_q <= hsel_i && htrans_i[1] && !hwrite_i;
+      haddr_q         <= haddr_i;
+      pending_read_q  <= hsel_i && htrans_i[1] && !hwrite_i;
+      pending_write_q <= hsel_i && htrans_i[1] && hwrite_i;
     end
   end
 
@@ -84,12 +87,16 @@ module abr_fpga_top_sim
                     : '0;
 
   // -------------------------------------------------------------------------
-  // Read-response logging
+  // Read-response/Write logging
   // -------------------------------------------------------------------------
   always_ff @(posedge clk_i) begin
     if (pending_read_q) begin
-      $display("[abr_fpga_top_sim] AHB read  addr=0x%08X  rdata=0x%016X",
-               haddr_q, hrdata_o);
+      $display("\n[%0t ns] abr_fpga_top_sim : AHB read  addr=0x%08X  rdata=0x%016X\n",
+               $realtime/1ns, haddr_q, hrdata_o);
+    end
+    if (pending_write_q) begin
+      $display("\n[%0t ns] abr_fpga_top_sim : AHB write addr=0x%08X  wdata=0x%016X\n",
+               $realtime/1ns, haddr_q, hwdata_i);
     end
   end
 

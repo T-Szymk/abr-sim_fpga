@@ -55,13 +55,13 @@ module abr_cw310_reg
   timeunit 1ns/1ps;
 
   // ---------------------------------------------------------------------------
-  // Register index constants (reg_bytecnt[6:2]) derived from package addresses
+  // Register index constants (reg_bytecnt[15:2]) derived from package addresses
   // ---------------------------------------------------------------------------
-  localparam logic [4:0] IDX_DUT_CTRL0 = CW310_ADDR_DUT_CTRL0[6:2]; // 5'h00
-  localparam logic [4:0] IDX_DUT_CTRL1 = CW310_ADDR_DUT_CTRL1[6:2]; // 5'h01
-  localparam logic [4:0] IDX_DUT_STAT0 = CW310_ADDR_DUT_STAT0[6:2]; // 5'h02
-  localparam logic [4:0] IDX_DUT_STAT1 = CW310_ADDR_DUT_STAT1[6:2]; // 5'h03
-  localparam logic [4:0] IDX_ABR_INSTR = CW310_ADDR_ABR_INSTR[6:2]; // 5'h04
+  localparam logic [13:0] IDX_DUT_CTRL0 = CW310_ADDR_DUT_CTRL0[15:2]; // 15'h00
+  localparam logic [13:0] IDX_DUT_CTRL1 = CW310_ADDR_DUT_CTRL1[15:2]; // 15'h01
+  localparam logic [13:0] IDX_DUT_STAT0 = CW310_ADDR_DUT_STAT0[15:2]; // 15'h02
+  localparam logic [13:0] IDX_DUT_STAT1 = CW310_ADDR_DUT_STAT1[15:2]; // 15'h03
+  localparam logic [13:0] IDX_ABR_INSTR = CW310_ADDR_ABR_INSTR[15:2]; // 15'h04
 
   // ---------------------------------------------------------------------------
   // Buffer range bounds expressed as reg_address values.
@@ -78,18 +78,18 @@ module abr_cw310_reg
   logic [31:0] dut_ctrl1_q;
   logic [31:0] abr_instr_q;
 
-  logic [pADDR_WIDTH-1:0] full_byte_addr; // reconstructed 20-bit USB byte address
-  logic [4:0]             reg_idx;        // register select within page 0
-  logic [1:0]             byte_sel;       // byte within 32-bit register
-  logic                   buf_sel;        // access targets the ABR_DBUFF region
+  logic [pADDR_WIDTH-1:0]  full_byte_addr; // reconstructed 20-bit USB byte address
+  logic [13:0]             reg_idx;        // register select within page 0
+  logic [ 1:0]             byte_sel;       // byte within 32-bit register
+  logic                    buf_sel;        // access targets the ABR_DBUFF region
 
   // 12-bit slice used for buffer offset subtraction — wide enough to span
   // 0x0100–0x08FF without carry issues (0x8FF = 2303 < 4096 = 2^12).
   logic [pADDR_WIDTH-1:0] buf_offset;
 
   assign full_byte_addr  = {reg_address, reg_bytecnt};
-  assign reg_idx         = full_byte_addr[6:2];
-  assign byte_sel        = full_byte_addr[1:0];
+  assign reg_idx         = full_byte_addr[15:2];
+  assign byte_sel        = full_byte_addr[ 1:0];
 
   assign buf_sel         = reg_addrvalid &&
                            (int'(reg_address) >= DBUFF_ADDR_LO) &&

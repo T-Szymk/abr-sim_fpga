@@ -144,7 +144,7 @@ module abr_memory_transfer_controller
         // A → B: read 32b from A, pack onto the correct B byte lane
         if (do_read) begin
           a_req_o  = 1'b1;
-          a_addr_o = AHB_ADDR_WIDTH'(rd_cnt) << WordShift;
+          a_addr_o = AHB_ADDR_WIDTH'(rd_cnt);
         end
         if (do_write) begin
           b_req_o   = 1'b1;
@@ -162,7 +162,7 @@ module abr_memory_transfer_controller
         if (do_write) begin
           a_req_o   = 1'b1;
           a_write_o = 1'b1;
-          a_addr_o  = AHB_ADDR_WIDTH'(wr_cnt) << WordShift;
+          a_addr_o  = AHB_ADDR_WIDTH'(wr_cnt);
           a_wdata_o = b_wr_addr[2] ? b_rdata_i[AHB_DATA_WIDTH-1 : A_DATA_WIDTH]
                                    : b_rdata_i[A_DATA_WIDTH-1   : 0];
         end
