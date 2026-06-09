@@ -2,7 +2,7 @@
 # constr_cw310.xdc
 #
 # Author(s): Tom Szymkowiak <thomas.szymkowiak@tuni.fi>
-# Date     : 25-may-2026
+# Date     : 8-jun-2026
 #
 # Description: Constraints file for main abr_fpga project on the cw310 board
 # ------------------------------------------------------------------------------
@@ -67,6 +67,8 @@ set_property -dict { PACKAGE_PIN  M24  IOSTANDARD   LVCMOS33 } [get_ports { USRL
 set_property -dict { PACKAGE_PIN  M19  IOSTANDARD   LVCMOS33 } [get_ports { USRLED[3] }]; #IO_L22N_T3_13
 set_property -dict { PACKAGE_PIN  L25  IOSTANDARD   LVCMOS33 } [get_ports { USRLED[4] }]; #IO_L3N_T0_DQS_13
 set_property -dict { PACKAGE_PIN  K26  IOSTANDARD   LVCMOS33 } [get_ports { USRLED[5] }]; #IO_L1N_T0_13
+set_property -dict { PACKAGE_PIN  L24  IOSTANDARD   LVCMOS33 } [get_ports { USRLED[6] }]; #IO_L8N_T1_13
+set_property -dict { PACKAGE_PIN  K25  IOSTANDARD   LVCMOS33 } [get_ports { USRLED[7] }]; #IO_L1P_T0_13
 
 set_property -dict { PACKAGE_PIN   U9  IOSTANDARD   LVCMOS18 } [get_ports { USRDIP0 }]; #IO_0_VRN_33
 set_property -dict { PACKAGE_PIN   V7  IOSTANDARD   LVCMOS18 } [get_ports { USRDIP1 }]; #IO_L2N_T0_33
@@ -80,11 +82,29 @@ set_property -dict { PACKAGE_PIN   V7  IOSTANDARD   LVCMOS18 } [get_ports { USRD
 #   |_|   |_____||_|  |_||_____||_| \_| \_____|#
 ################################################
 
-# clocks:
-create_clock -period 10.000 -name usb_clk  -waveform {0.000 5.000} [get_nets  usb_clk]
+set USB_CLK_HALF_PERIOD  7.500
+set HS2_CLK_HALF_PERIOD 25.000
 
-# both input clocks have same properties so there is no point in doing timing analysis for both:
-set_case_analysis 1 [get_pins i_cw_clocks/CCLK_MUX/S]
+# clocks:
+create_clock -period [expr 2*$USB_CLK_HALF_PERIOD] -name usb_clk  -waveform "0.000  ${USB_CLK_HALF_PERIOD}" [get_ports usb_clk]; # 66.666 MHz
+create_clock -period [expr 2*$HS2_CLK_HALF_PERIOD] -name CWIO_HS2 -waveform "0.000  ${HS2_CLK_HALF_PERIOD}" [get_ports CWIO_HS2]; # 20.000 MHz
+
+# both input clocks have same properties so there is no point in doing timing analysis for both (ignore CWIO_HS2):
+set_case_analysis 0 [get_pins i_cw_clocks/CCLK_MUX/S]
+
+# CDC Paths #
+## CTRL0
+set_false_path -from i_cw_reg_abr/dut_ctrl0_q_reg[0] -to dut_ctrl0_ff_reg[0][0];
+## CTRL1
+set_false_path -from i_cw_reg_abr/dut_ctrl1_q_reg[0] -to dut_ctrl1_ff_reg[0][0];
+## STATO
+set_false_path -from dut_rstn_sync_ff_reg[2] -to dut_stat0_ff_reg[0][0];
+set_false_path                               -to dut_stat0_ff_reg[0][1];
+## STAT1
+set_false_path -from abr_memory_transfer_controller/state_q_reg -to dut_stat1_ff_reg[0][0];
+## ABR INSTR
+# Set max delay to minimise skew between bits
+set_max_delay  -from i_cw_reg_abr/abr_instr_q_reg[*] -to abr_instr_ff_reg[0][*] -datapath_only [expr 2*$USB_CLK_HALF_PERIOD];
 
 # No spec for these, seems sensible:
 set_input_delay -clock usb_clk -add_delay 2.000 [get_ports {       USB_A }];
@@ -96,7 +116,6 @@ set_input_delay -clock usb_clk -add_delay 2.000 [get_ports {     USB_nWR }];
 
 set_input_delay -clock usb_clk              -add_delay 0.000 [get_ports { USRDIP0 }];
 set_input_delay -clock usb_clk              -add_delay 0.000 [get_ports { USRDIP1 }];
-set_input_delay -clock [get_clocks usb_clk] -add_delay 0.500 [get_ports {  USRSW2 }];
 
 set_output_delay -clock usb_clk 0.000 [ get_ports { USB_D     }];
 set_output_delay -clock usb_clk 0.000 [ get_ports { CWIO_IO4  }];
@@ -107,3 +126,5 @@ set_false_path -from [get_ports { USRSW0    }]; # USR_DBG_nRST is not a real res
 set_false_path -to   [get_ports { USRLED[*] }]; # USRLEDs are not real outputs, but just indicators. They can be used to indicate the state of the system, but they are not guaranteed to be glitch-free. Therefore, we need to tell the tools that they are not real output signals.
 set_false_path -to   [get_ports { CWIO_HS1  }]; # Forwarded clock
 set_false_path -to   [get_ports { CWIO_IO4  }]; # Async trigger signal
+set_false_path -from [get_ports { USRDIP0   }];
+set_false_path -from [get_ports { USRDIP1   }];

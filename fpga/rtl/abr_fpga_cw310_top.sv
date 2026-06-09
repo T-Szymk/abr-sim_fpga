@@ -181,7 +181,7 @@ module abr_fpga_cw310_top
     .I_j16_sel   ( USRDIP0      ),
     .I_k16_sel   ( USRDIP1      ),
     .I_clock_reg ( clk_settings ),
-    .I_cw_clkin  ( '0           ), // unused, we only use top_clk
+    .I_cw_clkin  ( CWIO_HS2     ), // unused, we only use top_clk
     .I_pll_clk1  ( clk_int      ),
     .O_cw_clkout ( CWIO_HS1     ),
     .O_cryptoclk ( crypt_clk    )

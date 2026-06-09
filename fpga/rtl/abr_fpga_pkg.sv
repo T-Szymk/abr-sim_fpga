@@ -16,7 +16,7 @@ package abr_fpga_pkg;
     // -----------------------------------------------------------------------
     // FPGA configuration params
     // -----------------------------------------------------------------------
-    localparam int unsigned LED_COUNT       =  6;
+    localparam int unsigned LED_COUNT           =  8;
 
     localparam int unsigned USB_DATA_WIDTH      =  8;
     localparam int unsigned USB_ADDR_WIDTH      = 20;
