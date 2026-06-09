@@ -17,18 +17,20 @@ module tb_abr_fpga;
 
   logic                      usb_clk;
   logic                      usb_clk_enable;
-  wire  [USB_DATA_WIDTH-1:0] usb_data;
-  logic [USB_DATA_WIDTH-1:0] usb_data_var;
-  logic [USB_DATA_WIDTH-1:0] usb_wdata;
-  logic [USB_ADDR_WIDTH-1:0] usb_addr;
   logic                      usb_rdn;
   logic                      usb_wrn;
   logic                      usb_cen;
+  logic [USB_DATA_WIDTH-1:0] usb_rdata;
+  logic [USB_DATA_WIDTH-1:0] usb_wdata;
+  logic [USB_ADDR_WIDTH-1:0] usb_addr;
+  wire  [USB_DATA_WIDTH-1:0] usb_data_net;
+
   logic                      usb_trigger;
 
   logic                      read_select;
 
-  
+  UsbBus_t usb;
+
   // -------------------------------------------------------------------------
   // Clock gen
   // -------------------------------------------------------------------------
@@ -49,7 +51,7 @@ module tb_abr_fpga;
     end
   end
 
-  assign usb_clk = tb_usb_clk & usb_clk_enable;
+  assign usb.clk = tb_usb_clk & usb_clk_enable;
 
   // -------------------------------------------------------------------------
   // TB Logic Instance
@@ -59,16 +61,17 @@ module tb_abr_fpga;
 
     logic dut_busy = 1'b1;
     CwRegWord_t read_data;
+    AbrInstr_t abr_instr;
     
-    $display("[%0t ns] TB : Starting tb_abr_fpga testbench", $realtime/1ns);
+    $display("[%16t ns] TB : Starting tb_abr_fpga testbench", $realtime/1ns);
 
     // initialise signals
     usb_clk_enable = 1'b1;
-    usb_wdata      = 0;
-    usb_addr       = 0;
-    usb_rdn        = 1;
-    usb_wrn        = 1;
-    usb_cen        = 1;
+    usb.wdata      = 0;
+    usb.addr       = 0;
+    usb.rdn        = 1;
+    usb.wrn        = 1;
+    usb.cen        = 1;
 
     // simulate reset 
     tb_reset = 1'b0;
@@ -78,56 +81,23 @@ module tb_abr_fpga;
     #(USB_CLK_PERIOD*10);
 
     // lift DUT from reset
-    write_word(
-      CW310_ADDR_DUT_CTRL0, 
-      CwRegWord_t'('h1),
-      usb_clk, usb_addr, usb_wdata, usb_wrn,usb_cen
-    );
+    dut_deassert_reset(usb);
 
     // read ABR status register via data buffer
-    // write READ instr. to INSTR reg
-    write_word(
-      CW310_ADDR_ABR_INSTR, 
-      CwRegWord_t'('h00140010),
-      usb_clk, usb_addr, usb_wdata, usb_wrn,usb_cen
-    );
+    abr_instr.addr     = 'h0014;
+    abr_instr.len_wrds =   'h01;
+    abr_instr.op_code  =    'h0;
 
-    // commit INSTR
-    write_word(
-      CW310_ADDR_DUT_CTRL1, 
-      CwRegWord_t'('h1),
-      usb_clk, usb_addr, usb_wdata, usb_wrn,usb_cen
-    );
+    // execute READ instruction
+    exec_instr(abr_instr, usb);
 
-    // wait for transfer busy flag to clear
-    while(1) begin
-    read_word(
-      CW310_ADDR_DUT_STAT1, 
-      read_data,
-      usb_clk, usb_addr, usb_rdn, usb_cen,usb_data_var
-    );
-
-    dut_busy = read_data[0][1];
-
-    if(dut_busy == 1'b0) 
-      break;
-
-    end
-
-    $display("\nREAD_TRANSFER COMPLETE\n");
-
-    // clear INSTR commit reg
-    write_word(
-      CW310_ADDR_DUT_CTRL1, 
-      CwRegWord_t'('h0),
-      usb_clk, usb_addr, usb_wdata, usb_wrn,usb_cen
-    );
+    $display("\n[%16t ns] TB : READ_TRANSFER COMPLETE\n", $realtime/1ns);
 
     // Read data back from Data Buffer
     read_word(
       CW310_ADDR_ABR_DBUFF_BASE, 
       read_data,
-      usb_clk, usb_addr, usb_rdn, usb_cen,usb_data_var
+      usb
     );
     
     for (int unsigned i = 0; i < 16; i++) begin
@@ -135,95 +105,53 @@ module tb_abr_fpga;
       write_word(
         CW310_ADDR_ABR_DBUFF_BASE + USB_ADDR_WIDTH'(i*4), 
         CwRegWord_t'({16'hDEAD, 16'(i)}),
-        usb_clk, usb_addr, usb_wdata, usb_wrn,usb_cen
+        usb
       );
     end
 
-    // write WRITE instr. to INSTR reg
-    write_word(
-      CW310_ADDR_ABR_INSTR, 
-      CwRegWord_t'('h0058_010_1),
-      usb_clk, usb_addr, usb_wdata, usb_wrn,usb_cen
-    );
+    // write the dummy bytes from DBUFF to MLDSA_SEED
+    abr_instr.addr     = 'h0058;
+    abr_instr.len_wrds =   'h10;
+    abr_instr.op_code  =    'h1;
 
-    // commit INSTR
-    write_word(
-      CW310_ADDR_DUT_CTRL1, 
-      CwRegWord_t'('h1),
-      usb_clk, usb_addr, usb_wdata, usb_wrn,usb_cen
-    );
+    // execute WRITE instruction
+    exec_instr(abr_instr, usb);
 
-    // wait for transfer busy flag to clear
-    while(1) begin
-    read_word(
-      CW310_ADDR_DUT_STAT1, 
-      read_data,
-      usb_clk, usb_addr, usb_rdn, usb_cen,usb_data_var
-    );
+    $display("\n[%16t ns] TB : WRITE_TRANSFER COMPLETE\n", $realtime/1ns);
 
-    dut_busy = read_data[0][1];
-
-    if(dut_busy == 1'b0) 
-      break;
-
+    // clear DBUFF 
+    for (int unsigned i = 0; i < 16; i++) begin
+      write_word(
+        CW310_ADDR_ABR_DBUFF_BASE + USB_ADDR_WIDTH'(i*4), 
+        CwRegWord_t'(32'h0000_0000),
+        usb
+      );
     end
 
-    $display("\nMULTI WRITE_TRANSFER COMPLETE\n");
+    // read the dummy bytes from MLDSA_SEED back to DBUFF
+    abr_instr.addr     = 'h0058;
+    abr_instr.len_wrds =   'h10;
+    abr_instr.op_code  =    'h0;
 
-    // clear INSTR commit reg
-    write_word(
-      CW310_ADDR_DUT_CTRL1, 
-      CwRegWord_t'('h0),
-      usb_clk, usb_addr, usb_wdata, usb_wrn,usb_cen
-    );
+    // execute READ instruction
+    exec_instr(abr_instr, usb);
 
-    // write READ instr. to INSTR reg
-    write_word(
-      CW310_ADDR_ABR_INSTR, 
-      CwRegWord_t'('h0058_010_0),
-      usb_clk, usb_addr, usb_wdata, usb_wrn,usb_cen
-    );
-
-    // commit INSTR
-    write_word(
-      CW310_ADDR_DUT_CTRL1, 
-      CwRegWord_t'('h1),
-      usb_clk, usb_addr, usb_wdata, usb_wrn,usb_cen
-    );
-
-    // wait for transfer busy flag to clear
-    while(1) begin
-    read_word(
-      CW310_ADDR_DUT_STAT1, 
-      read_data,
-      usb_clk, usb_addr, usb_rdn, usb_cen,usb_data_var
-    );
-
-    dut_busy = read_data[0][1];
-
-    if(dut_busy == 1'b0) 
-      break;
-
-    end
-
+    // print DBUFF contents
+    $display("\n[%16t] TB : Reading out from DBUFF", $realtime/1ns);
+    
     for (int unsigned i = 0; i < 16; i++) begin
       // read dummy words from BUFF
       read_word(
         CW310_ADDR_ABR_DBUFF_BASE + USB_ADDR_WIDTH'(i*4), 
         read_data,
-        usb_clk, usb_addr, usb_rdn, usb_cen,usb_data_var
+        usb
       );
-      $display("[%0t] TB : Read 0x%8H from DBUFF", $realtime/1ns, read_data);
+      $display("\t\tRead 0x%8H from DBUFF entry %d", read_data, i);
     end
 
-    $display("\nMULTI READ_TRANSFER COMPLETE\n");
-
-    // clear INSTR commit reg
-    write_word(
-      CW310_ADDR_DUT_CTRL1, 
-      CwRegWord_t'('h0),
-      usb_clk, usb_addr, usb_wdata, usb_wrn,usb_cen
-    );
+    // end of test
+    $display("\nTest Complete!\n");
+    $finish;
     
   end
 
@@ -235,7 +163,7 @@ module tb_abr_fpga;
     forever begin
       @(posedge tb_pll_clk);
       if ($realtime >= TB_TIMEOUT) begin 
-        $display("[%0t ns] TB : Test bench timed out!", $realtime/1ns);
+        $display("[%16t ns] TB : Test bench timed out!", $realtime/1ns);
         $finish;
       end
     end
@@ -261,12 +189,12 @@ module tb_abr_fpga;
   assign usb_trigger = 1'b0; // unused - normally used to drive functions when usb clock is disabled
 
   assign read_select  = (usb_wrn == 1'b0) ? 1'b0 : 1'b1;
-  assign usb_data     = read_select ? 'Z : usb_wdata;
-  assign usb_data_var = usb_data;
+  assign usb_data_net = read_select ? 'Z : usb.wdata;
+  assign usb.rdata    = usb_data_net;
 
-  wire #1 usb_rdn_dly = usb_rdn;
-  wire #1 usb_wrn_dly = usb_wrn;
-  wire #1 usb_cen_dly = usb_cen;
+  wire #1 usb_rdn_dly = usb.rdn;
+  wire #1 usb_wrn_dly = usb.wrn;
+  wire #1 usb_cen_dly = usb.cen;
 
   abr_fpga_cw310_top #(
     .pBYTECNT_SIZE( USB_BCOUNT_SIZE ),
@@ -281,8 +209,8 @@ module tb_abr_fpga;
     .USRLED     ( tb_leds          ),
     .CWIO_IO4   ( tb_cwio4_trigger ),
     .usb_clk    ( tb_usb_clk       ),
-    .USB_D      ( usb_data         ),
-    .USB_A      ( usb_addr         ),
+    .USB_D      ( usb_data_net     ),
+    .USB_A      ( usb.addr         ),
     .USB_nRD    ( usb_rdn_dly      ),
     .USB_nWR    ( usb_wrn_dly      ),
     .USB_nCE    ( usb_cen_dly      ),

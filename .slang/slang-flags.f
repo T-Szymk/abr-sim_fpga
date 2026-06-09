@@ -30,4 +30,3 @@
 +define+SIMULATION
 +define+__ICARUS__
 +define+USE_ABR_SIM_MODEL
-+define+VERBOSE

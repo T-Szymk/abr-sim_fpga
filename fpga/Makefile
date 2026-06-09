@@ -256,10 +256,10 @@ VLOG_OPTS     += -quiet
 VLOG_OPTS     += -logfile $(LOG_DIR)/vlog_$(DATE).log
 VLOG_OPTS     += $(INC_DIRS)
 VLOG_OPTS     += +define+TECH_SPECIFIC_ICG \
-								 +define+SIMULATION \
-								 +define+NOMIG \
-								 +define+__ICARUS__ \
-								 +define+USE_ABR_SIM_MODEL
+                 +define+SIMULATION \
+                 +define+NOMIG \
+                 +define+__ICARUS__ \
+                 +define+USE_ABR_SIM_MODEL
 
 
 VLOG_SUPPRESS ?= -suppress vlog-13314
@@ -339,8 +339,7 @@ V_DEFINES   = -DTECH_SPECIFIC_ICG \
 			  -DVERILATOR \
 			  -DSIMULATION \
 			  -D__ICARUS__ \
-			  -DUSE_ABR_SIM_MODEL \
-			  -DVERBOSE
+			  -DUSE_ABR_SIM_MODEL
 
 # Verilator flags
 VFLAGS := \

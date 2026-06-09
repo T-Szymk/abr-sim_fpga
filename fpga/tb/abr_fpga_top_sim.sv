@@ -89,6 +89,7 @@ module abr_fpga_top_sim
   // -------------------------------------------------------------------------
   // Read-response/Write logging
   // -------------------------------------------------------------------------
+`ifdef VERBOSE
   always_ff @(posedge clk_i) begin
     if (pending_read_q) begin
       $display("\n[%0t ns] abr_fpga_top_sim : AHB read  addr=0x%08X  rdata=0x%016X\n",
@@ -99,6 +100,7 @@ module abr_fpga_top_sim
                $realtime/1ns, haddr_q, hwdata_i);
     end
   end
+`endif
 
   // -------------------------------------------------------------------------
   // Tie-offs
