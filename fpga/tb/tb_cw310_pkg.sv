@@ -165,12 +165,13 @@ package tb_cw310_pkg;
           usb
         );
       end
-      if (VERBOSE)
+      if (VERBOSE) begin
         $display("[%16t ns] TB", $realtime/1ns,
                   "\n\t\tNAME: %s ", regaddr2name(address),
                   "\n\t\tADDR: 0x%H ", address,
                   "\n\t\tDATA: 0x%0H", data
                 );
+      end
     end
   endtask : read_word
 
@@ -182,11 +183,13 @@ package tb_cw310_pkg;
     begin
       CwRegWord_t tmp_data;
 
-      $display("\n[%16t ns] TB : Executing instruction:", $realtime/1ns,
-               "\n\t ADDR     : 0x%4X", abr_instr.addr,
-               "\n\t LEN_WRDS :  0x%3X", abr_instr.len_wrds,
-               "\n\t OP_CODE  :    0x%1X", abr_instr.op_code,
-      );
+      if (VERBOSE) begin
+        $display("\n[%16t ns] TB : Executing instruction:", $realtime/1ns,
+                 "\n\t ADDR     : 0x%4X", abr_instr.addr,
+                 "\n\t LEN_WRDS :  0x%3X", abr_instr.len_wrds,
+                 "\n\t OP_CODE  :    0x%1X", abr_instr.op_code,
+        );
+      end
 
       // write instruction to instr reg
       write_word(CW310_ADDR_ABR_INSTR, CwRegWord_t'(abr_instr), usb);
@@ -201,6 +204,7 @@ package tb_cw310_pkg;
         read_word(CW310_ADDR_DUT_STAT1, tmp_data, usb);
         // end sim if error is detected
         if (tmp_data[0][1]) begin
+          $display("[%16t ns] TB : CW310_ADDR_DUT_STAT1 0x%H: ", $realtime/1ns, tmp_data);
           $error("[%16t ns] TB : Transfer error bit set!", $realtime/1ns);
           $finish;
         end
@@ -283,6 +287,74 @@ package tb_cw310_pkg;
     end
       
   endtask : dut_deassert_reset
+
+  // Wait for ABR to report ML-DSA ready
+  task automatic dut_wait_for_mldsa_ready (   
+    ref    UsbBus_t    usb
+  );
+    begin
+
+      AbrInstr_t  abr_instr;
+      CwRegWord_t tmp_data;
+
+      $display("\n[%16t ns] TB : Waiting for ABR ML-DSA to report ready...", $realtime/1ns);
+
+      // READ ABR MLDSA_STATUS register via data buffer
+      abr_instr.addr     = 'h0014;
+      abr_instr.len_wrds =   'h01;
+      abr_instr.op_code  =    'h0;
+
+      while(1) begin
+
+        // execute instr
+        exec_instr(abr_instr, usb);
+        // read data buffer
+        read_word(CW310_ADDR_ABR_DBUFF_BASE, tmp_data, usb);
+        if (tmp_data[0][0])
+          break;
+      end
+
+
+      $display("[%16t ns] TB : ABR MLDSA ready!", $realtime/1ns);
+      $display("\t\tMLDSA_STATUS : 0x%H", tmp_data);
+
+    end
+      
+  endtask : dut_wait_for_mldsa_ready
+
+  // Wait for ABR to report ML-KEM ready
+  task automatic dut_wait_for_mlkem_ready (   
+    ref    UsbBus_t    usb
+  );
+    begin
+
+      AbrInstr_t  abr_instr;
+      CwRegWord_t tmp_data;
+
+      $display("\n[%16t ns] TB : Waiting for ABR ML-KEM to report ready...", $realtime/1ns);
+
+      // READ ABR MLDSA_STATUS register via data buffer
+      abr_instr.addr     = 'h9014;
+      abr_instr.len_wrds =   'h01;
+      abr_instr.op_code  =    'h0;
+
+      while(1) begin
+
+        // execute instr
+        exec_instr(abr_instr, usb);
+        // read data buffer
+        read_word(CW310_ADDR_ABR_DBUFF_BASE, tmp_data, usb);
+        if (tmp_data[0][0])
+          break;
+      end
+
+
+      $display("[%16t ns] TB : ABR MLKEM ready!", $realtime/1ns);
+      $display("\t\tMLKEM_STATUS : 0x%H", tmp_data);
+
+    end
+      
+  endtask : dut_wait_for_mlkem_ready
 
 
 endpackage : tb_cw310_pkg

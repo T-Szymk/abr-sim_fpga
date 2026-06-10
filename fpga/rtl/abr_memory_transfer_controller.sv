@@ -22,7 +22,7 @@ module abr_memory_transfer_controller
     output  logic [   AHB_ADDR_WIDTH-1:0] a_addr_o,
     output  logic [     A_DATA_WIDTH-1:0] a_wdata_o,
     input   logic [     A_DATA_WIDTH-1:0] a_rdata_i,
-    input   logic                         a_ready_i,  // NOTE: Assumed to always be ready
+    input   logic                         a_ready_i,  // assume BRAMs are always ready
     // B interface (64-bit AHB, 32-bit sub-word accesses with byte-lane packing)
     output  logic                         b_req_o,
     output  logic                         b_write_o,
@@ -30,7 +30,7 @@ module abr_memory_transfer_controller
     output  logic [   AHB_ADDR_WIDTH-1:0] b_addr_o,
     output  logic [   AHB_DATA_WIDTH-1:0] b_wdata_o,
     input   logic [   AHB_DATA_WIDTH-1:0] b_rdata_i,
-    input   logic                         b_ready_i,  // NOTE: Assumed to always be ready
+    input   logic                         b_ready_i,
 
     // Status
     output  logic                         busy_o,     // transfer sequence in-progress
@@ -73,6 +73,11 @@ module abr_memory_transfer_controller
   assign do_read  = (rd_cnt < n_words_r);
   assign do_write = (rd_cnt > '0);
 
+  // Stall the pipeline when the B interface signals it cannot accept a request.
+  // Both counters and all outputs are frozen until b_ready_i is reasserted.
+  logic stall;
+  assign stall = !b_ready_i;
+
   always_ff @(posedge clk_i or negedge rst_ni) begin
     if (!rst_ni) begin
       state_q   <= IDLE;
@@ -96,11 +101,13 @@ module abr_memory_transfer_controller
         end
 
         BUSY: begin
-          if (do_read)  rd_cnt <= rd_cnt + 1'b1;
-          if (do_write) wr_cnt <= wr_cnt + 1'b1;
-          // Exit after the last write is issued
-          if (do_write && (wr_cnt == n_words_r - 1))
-            state_q <= IDLE;
+          if (!stall) begin
+            if (do_read)  rd_cnt <= rd_cnt + 1'b1;
+            if (do_write) wr_cnt <= wr_cnt + 1'b1;
+            // Exit after the last write is issued
+            if (do_write && (wr_cnt == n_words_r - 1))
+              state_q <= IDLE;
+          end
         end
 
       endcase
@@ -139,7 +146,7 @@ module abr_memory_transfer_controller
     b_addr_o  = '0;
     b_wdata_o = '0;
 
-    if (state_q == BUSY) begin
+    if (state_q == BUSY && !stall) begin
       if (op_r) begin
         // A → B: read 32b from A, pack onto the correct B byte lane
         if (do_read) begin
@@ -188,11 +195,6 @@ module abr_memory_transfer_controller
     @(posedge clk_i) disable iff (!rst_ni)
     a_req_o |-> a_ready_i
   ) else $error("%m: a_ready_i deasserted unexpectedly");
-
-  a_b_always_ready: assert property (
-    @(posedge clk_i) disable iff (!rst_ni)
-    b_req_o |-> b_ready_i
-  ) else $error("%m: b_ready_i deasserted unexpectedly");
   // synthesis translate_on
 
 endmodule : abr_memory_transfer_controller

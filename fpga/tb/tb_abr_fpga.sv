@@ -10,19 +10,12 @@ module tb_abr_fpga;
   logic tb_usb_clk;
   logic tb_reset;
 
-  logic                     tb_j16_sel;
-  logic                     tb_k16_sel;
-  logic                     tb_cwio4_trigger;
-  logic [    LED_COUNT-1:0] tb_leds;
+  logic                      tb_j16_sel;
+  logic                      tb_k16_sel;
+  logic                      tb_cwio4_trigger;
+  logic [     LED_COUNT-1:0] tb_leds;
 
-  logic                      usb_clk;
   logic                      usb_clk_enable;
-  logic                      usb_rdn;
-  logic                      usb_wrn;
-  logic                      usb_cen;
-  logic [USB_DATA_WIDTH-1:0] usb_rdata;
-  logic [USB_DATA_WIDTH-1:0] usb_wdata;
-  logic [USB_ADDR_WIDTH-1:0] usb_addr;
   wire  [USB_DATA_WIDTH-1:0] usb_data_net;
 
   logic                      usb_trigger;
@@ -83,63 +76,47 @@ module tb_abr_fpga;
     // lift DUT from reset
     dut_deassert_reset(usb);
 
-    // read ABR status register via data buffer
-    abr_instr.addr     = 'h0014;
-    abr_instr.len_wrds =   'h01;
-    abr_instr.op_code  =    'h0;
+    // wait for mldsa ready to be asserted
+    dut_wait_for_mldsa_ready(usb);
 
-    // execute READ instruction
-    exec_instr(abr_instr, usb);
+    // wait for mlkwm ready to be asserted
+    dut_wait_for_mlkem_ready(usb);
 
-    $display("\n[%16t ns] TB : READ_TRANSFER COMPLETE\n", $realtime/1ns);
+    // read name and version for both DSA and KEM
 
-    // Read data back from Data Buffer
-    read_word(
-      CW310_ADDR_ABR_DBUFF_BASE, 
-      read_data,
-      usb
-    );
-    
-    for (int unsigned i = 0; i < 16; i++) begin
-      // write dummy words to ABR
-      write_word(
-        CW310_ADDR_ABR_DBUFF_BASE + USB_ADDR_WIDTH'(i*4), 
-        CwRegWord_t'({16'hDEAD, 16'(i)}),
-        usb
-      );
-    end
-
-    // write the dummy bytes from DBUFF to MLDSA_SEED
-    abr_instr.addr     = 'h0058;
-    abr_instr.len_wrds =   'h10;
-    abr_instr.op_code  =    'h1;
-
-    // execute WRITE instruction
-    exec_instr(abr_instr, usb);
-
-    $display("\n[%16t ns] TB : WRITE_TRANSFER COMPLETE\n", $realtime/1ns);
-
-    // clear DBUFF 
-    for (int unsigned i = 0; i < 16; i++) begin
-      write_word(
-        CW310_ADDR_ABR_DBUFF_BASE + USB_ADDR_WIDTH'(i*4), 
-        CwRegWord_t'(32'h0000_0000),
-        usb
-      );
-    end
-
-    // read the dummy bytes from MLDSA_SEED back to DBUFF
-    abr_instr.addr     = 'h0058;
-    abr_instr.len_wrds =   'h10;
+    // DSA
+    abr_instr.addr     = 'h0000;
+    abr_instr.len_wrds =   'h04;
     abr_instr.op_code  =    'h0;
 
     // execute READ instruction
     exec_instr(abr_instr, usb);
 
     // print DBUFF contents
-    $display("\n[%16t] TB : Reading out from DBUFF", $realtime/1ns);
+    $display("\n[%16t] TB : Reading DSA Metadata from DBUFF", $realtime/1ns);
     
-    for (int unsigned i = 0; i < 16; i++) begin
+    for (int unsigned i = 0; i < 4; i++) begin
+      // read dummy words from BUFF
+      read_word(
+        CW310_ADDR_ABR_DBUFF_BASE + USB_ADDR_WIDTH'(i*4), 
+        read_data,
+        usb
+      );
+      $display("\t\tRead 0x%8H from DBUFF entry %d", read_data, i);
+    end
+
+    // KEM
+    abr_instr.addr     = 'h9000;
+    abr_instr.len_wrds =   'h04;
+    abr_instr.op_code  =    'h0;
+
+    // execute READ instruction
+    exec_instr(abr_instr, usb);
+
+    // print DBUFF contents
+    $display("\n[%16t] TB : Reading KEM Metadata from DBUFF", $realtime/1ns);
+    
+    for (int unsigned i = 0; i < 4; i++) begin
       // read dummy words from BUFF
       read_word(
         CW310_ADDR_ABR_DBUFF_BASE + USB_ADDR_WIDTH'(i*4), 
@@ -188,7 +165,7 @@ module tb_abr_fpga;
   assign tb_k16_sel  = 1'b0; // enables output clock
   assign usb_trigger = 1'b0; // unused - normally used to drive functions when usb clock is disabled
 
-  assign read_select  = (usb_wrn == 1'b0) ? 1'b0 : 1'b1;
+  assign read_select  = (usb.wrn == 1'b0) ? 1'b0 : 1'b1;
   assign usb_data_net = read_select ? 'Z : usb.wdata;
   assign usb.rdata    = usb_data_net;
 
