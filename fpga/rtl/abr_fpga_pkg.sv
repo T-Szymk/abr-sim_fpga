@@ -44,7 +44,7 @@ package abr_fpga_pkg;
     localparam int unsigned A_DATA_WIDTH   = RAM_WIDTH;                           // Width of data to/from BRAM (e.g. 8 bits for a single byte)
     localparam int unsigned B_DATA_WIDTH   =   32;                                // Width of data to/from AHB    
     localparam int unsigned RAM_COUNT      = B_DATA_WIDTH / (NB_COL * COL_WIDTH); // Number of parallel RAMs needed to achieve DATA_WIDTH                    // Width of each individual RAM (e.g. 8 bits for a single byte)
-    localparam int unsigned RAM_DEPTH      = 2048 / RAM_COUNT;                    // Number of 32-bit words in the BRAM. Must be >= the largest base_addr + num_words in any descriptor table. With 2048 words, we can cover up to address 0x1FFF with 32-bit words.
+    localparam int unsigned RAM_DEPTH      = 8192 / RAM_COUNT;                    // Depth of each byte-lane BRAM (8192-byte buffer in total). Must be large enough to hold the largest ABR register block (MLDSA_PRIVKEY = 4896 Bytes).
     localparam int unsigned RAM_ADDR_WIDTH = $clog2(RAM_DEPTH);
     localparam int unsigned A_ADDR_WIDTH   = 20;                                   // Address width matches USB address width, which is independent of RAM_DEPTH since the BRAMs are accessed with a word-aligned address and the RAM array module handles the internal byte addressing.
     localparam int unsigned B_ADDR_WIDTH   = RAM_ADDR_WIDTH; 
@@ -87,12 +87,12 @@ package abr_fpga_pkg;
     localparam logic [USB_ADDR_WIDTH-1:0] CW310_ADDR_DUT_STAT1 = 'h0C;
     localparam logic [USB_ADDR_WIDTH-1:0] CW310_ADDR_ABR_INSTR = 'h10;
 
-    // ABR_DBUFF — 2048-byte data buffer, forwarded to an external module.
+    // ABR_DBUFF — 8192-byte data buffer, forwarded to an external module.
     // Access within this range is NOT stored here; writes are forwarded as a
     // pulsed strobe and reads are returned from an external input port.
     localparam logic [USB_ADDR_WIDTH-1:0] CW310_ADDR_ABR_DBUFF_BASE = 'h0100;  // inclusive
-    localparam logic [USB_ADDR_WIDTH-1:0] CW310_ADDR_ABR_DBUFF_END  = 'h0900;  // exclusive
-    localparam int unsigned CW310_ABR_DBUFF_ADDR_W    =            // = 11
+    localparam logic [USB_ADDR_WIDTH-1:0] CW310_ADDR_ABR_DBUFF_END  = 'h2100;  // exclusive
+    localparam int unsigned CW310_ABR_DBUFF_ADDR_W    =            // = 13
         $clog2(CW310_ADDR_ABR_DBUFF_END - CW310_ADDR_ABR_DBUFF_BASE);
 
 endpackage

@@ -259,7 +259,8 @@ VLOG_OPTS     += +define+TECH_SPECIFIC_ICG \
                  +define+SIMULATION \
                  +define+NOMIG \
                  +define+__ICARUS__ \
-                 +define+USE_ABR_SIM_MODEL
+                 +define+USE_ABR_SIM_MODEL \
+                 +define+VECTOR_DIR=\"$(FPGA_TB_DIR)/vectors\"
 
 
 VLOG_SUPPRESS ?= -suppress vlog-13314
@@ -338,7 +339,8 @@ V_BUILD_DIR = $(BUILD_DIR)/verilator_build
 V_DEFINES   = -DTECH_SPECIFIC_ICG \
 			  -DVERILATOR \
 			  -DSIMULATION \
-			  -D__ICARUS__
+			  -D__ICARUS__ \
+			  -DVECTOR_DIR='"$(FPGA_TB_DIR)/vectors"'
 
 # Verilator flags
 VFLAGS := \

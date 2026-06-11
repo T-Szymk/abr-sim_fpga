@@ -12,7 +12,7 @@
 //   0x0008–0x000B  DUT_STAT0  RO   sampled from dut_stat0_i
 //   0x000C–0x000F  DUT_STAT1  RO   sampled from dut_stat1_i
 //   0x0010–0x0013  ABR_INSTR  R/W  driven out as abr_instr_o
-//   0x0100–0x08FF  ABR_DBUFF  R/W  forwarded to external buffer module via
+//   0x0100–0x20FF  ABR_DBUFF  R/W  forwarded to external buffer module via
 //                                  buf_addr_o / buf_wdata_o / buf_wr_o /
 //                                  buf_rdata_i (not stored here)
 
@@ -66,7 +66,7 @@ module abr_cw310_reg
   // ---------------------------------------------------------------------------
   // Buffer range bounds expressed as reg_address values.
   // reg_address = USB_A[19:pBYTECNT_SIZE], so each unit is 2^pBYTECNT_SIZE bytes.
-  // With pBYTECNT_SIZE=7: DBUFF_BASE=0x0100>>7=2, DBUFF_HI=0x08FF>>7=17.
+  // With pBYTECNT_SIZE=7: DBUFF_BASE=0x0100>>7=2, DBUFF_HI=0x20FF>>7=65.
   // ---------------------------------------------------------------------------
   localparam int DBUFF_ADDR_LO = int'(CW310_ADDR_ABR_DBUFF_BASE) >> pBYTECNT_SIZE;
   localparam int DBUFF_ADDR_HI = (int'(CW310_ADDR_ABR_DBUFF_END) - 1) >> pBYTECNT_SIZE;
@@ -83,8 +83,8 @@ module abr_cw310_reg
   logic [ 1:0]             byte_sel;       // byte within 32-bit register
   logic                    buf_sel;        // access targets the ABR_DBUFF region
 
-  // 12-bit slice used for buffer offset subtraction — wide enough to span
-  // 0x0100–0x08FF without carry issues (0x8FF = 2303 < 4096 = 2^12).
+  // Full-width buffer offset subtraction — pADDR_WIDTH bits comfortably spans
+  // the 0x0100–0x20FF window (0x20FF = 8447 < 2^20).
   logic [pADDR_WIDTH-1:0] buf_offset;
 
   assign full_byte_addr  = {reg_address, reg_bytecnt};
