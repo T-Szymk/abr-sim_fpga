@@ -77,10 +77,10 @@ module tb_abr_fpga;
     dut_deassert_reset(usb);
 
     // wait for mldsa ready to be asserted
-    dut_wait_for_mldsa_ready(usb);
+    dut_mldsa_wait_for_ready(usb);
 
     // wait for mlkwm ready to be asserted
-    dut_wait_for_mlkem_ready(usb);
+    dut_mlkem_wait_for_ready(usb);
 
     // read name and version for both DSA and KEM
 
