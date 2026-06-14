@@ -22,7 +22,8 @@
 
 | Bits     | Identifier  | Access | Reset | Notes                                         |
 | :------- | :---------- | :----- | :---- | :---                                          |
-| \[31:1\] | _reserved_  | \-     | \-    | \-                                            |
+| \[31\]   | USRLED5     | \-     | \-    | Programmable LED                              |
+| \[30:1\] | _reserved_  | \-     | \-    | \-                                            |
 | \[0\]    | INSTR_RUN   | R/W    | 0x0   | Process instruction within ABR_INSTR register |
 
 #### DUT_STAT0

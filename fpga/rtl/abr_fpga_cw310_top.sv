@@ -46,8 +46,9 @@ module abr_fpga_cw310_top
 
 
   // Debug counter for LED toggling
-  logic [25:0] dbg_cntr_fpga;
+  logic [20:0] dbg_cntr_fpga;
   logic [25:0] dbg_cntr_usb;
+  logic        programmable_usrled;
 
   logic [SyncStages-1:0] fpga_rstn_sync_ff;
   logic [SyncStages-1:0] usb_rstn_sync_ff;
@@ -59,11 +60,12 @@ module abr_fpga_cw310_top
   assign reset_ext = ~USRSW0;
 
   // debug LEDs
-  assign USRLED[0] = ~usb_reset;
-  assign USRLED[1] = dbg_cntr_usb[25];
-  assign USRLED[2] = rst_n;
-  assign USRLED[3] = dbg_cntr_fpga[25];
-  assign USRLED[4] = dut_rstn;
+  assign USRLED[0] = ~usb_reset;          // USB domain active high reset
+  assign USRLED[1] = dbg_cntr_usb[25];    // USB debug counter 96MHz
+  assign USRLED[2] = rst_n;               // FPGA domain active low reset
+  assign USRLED[3] = dbg_cntr_fpga[19];   // FPGA debug counter 20MHz
+  assign USRLED[4] = dut_rstn;            // DUT reset
+  assign USRLED[5] = programmable_usrled; // Programmable User LED
   
 
   assign USRLED[LED_COUNT-1:5] = '0;
@@ -323,7 +325,8 @@ module abr_fpga_cw310_top
   ////////////
   // CTRL 1 //
   ////////////
-  assign m_xfer_start = dut_ctrl1_sync[0]; // INSTR_RUN triggers start of memory transfer
+  assign m_xfer_start        = dut_ctrl1_sync[ 0]; // INSTR_RUN triggers start of memory transfer
+  assign programmable_usrled = dut_ctrl1_sync[31]; // Programmabe LED for debugging
 
   ////////////
   // STAT 0 //
