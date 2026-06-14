@@ -5,7 +5,7 @@ package tb_cw310_pkg;
   import abr_reg_pkg::*;
   import abr_params_pkg::*;
 
-  parameter realtime TB_PLL_CLK_PERIOD =  1.0ns; 
+  parameter realtime TB_PLL_CLK_PERIOD = 50.0ns; 
   parameter realtime USB_CLK_PERIOD    = 10.0ns;
   parameter realtime TB_RESET_DURATION = 20.0ns; // Reset active for first 20 ns
   parameter realtime TB_TIMEOUT        = 10.0ms; // Timeout for test completion
@@ -320,6 +320,62 @@ package tb_cw310_pkg;
     end
   endtask : read_word
 
+  // wait for busy to be set
+  task automatic wait_for_instr_bsy_set (
+    ref UsbBus_t usb
+  );
+    begin
+      CwRegWord_t tmp_data;
+      logic       instr_busy;
+      logic       xfer_error;
+
+      instr_busy = 1'b0;
+      xfer_error = 1'b0;
+
+      // wait for busy to be set
+      while(instr_busy == 1'b0) begin
+        
+        read_word(CW310_ADDR_DUT_STAT1, tmp_data, usb);
+        {xfer_error, instr_busy} = tmp_data[0][1:0];
+
+        if (xfer_error) begin
+          $display("[%16t ns] TB : CW310_ADDR_DUT_STAT1 0x%H: ", $realtime/1ns, tmp_data);
+          $error("[%16t ns] TB : Transfer error bit set!", $realtime/1ns);
+          $finish;
+        end
+
+      end
+    end
+  endtask : wait_for_instr_bsy_set
+
+  // wait for busy to be clear
+  task automatic wait_for_instr_bsy_clr (
+    ref UsbBus_t usb
+  );
+    begin
+      CwRegWord_t tmp_data;
+      logic       instr_busy;
+      logic       xfer_error;
+
+      instr_busy = 1'b1;
+      xfer_error = 1'b0;
+
+      // wait for busy to clear
+      while(instr_busy == 1'b1) begin
+        
+        read_word(CW310_ADDR_DUT_STAT1, tmp_data, usb);
+        {xfer_error, instr_busy} = tmp_data[0][1:0];
+
+        if (xfer_error) begin
+          $display("[%16t ns] TB : CW310_ADDR_DUT_STAT1 0x%H: ", $realtime/1ns, tmp_data);
+          $error("[%16t ns] TB : Transfer error bit set!", $realtime/1ns);
+          $finish;
+        end
+
+      end
+    end
+  endtask : wait_for_instr_bsy_clr
+
   // execute an instruction to read/write ABR registers to/from DBUFF
   task automatic exec_instr (
     input  AbrInstr_t  abr_instr,
@@ -344,23 +400,16 @@ package tb_cw310_pkg;
       tmp_data[0][0] = 1'b1;
       write_word(CW310_ADDR_DUT_CTRL1, tmp_data, usb);
 
-      // wait for transfer busy flag to clear and check for errors
-      while(1) begin
-        read_word(CW310_ADDR_DUT_STAT1, tmp_data, usb);
-        // end sim if error is detected
-        if (tmp_data[0][1]) begin
-          $display("[%16t ns] TB : CW310_ADDR_DUT_STAT1 0x%H: ", $realtime/1ns, tmp_data);
-          $error("[%16t ns] TB : Transfer error bit set!", $realtime/1ns);
-          $finish;
-        end
-        if (!tmp_data[0][0])
-          break;
-      end
+      // wait for transfer busy flag to be set and check for errors
+      wait_for_instr_bsy_set(usb);
 
       // clear instruction initiate register using read/modify/write
       read_word(CW310_ADDR_DUT_CTRL1, tmp_data, usb);
       tmp_data[0][0] = 1'b0;
       write_word(CW310_ADDR_DUT_CTRL1, tmp_data, usb);
+
+      // wait for transfer busy flag to be cleared and check for errors
+      wait_for_instr_bsy_clr(usb);
 
     end
   endtask : exec_instr

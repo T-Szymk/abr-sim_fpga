@@ -82,7 +82,7 @@ set_property -dict { PACKAGE_PIN   V7  IOSTANDARD   LVCMOS18 } [get_ports { USRD
 #   |_|   |_____||_|  |_||_____||_| \_| \_____|#
 ################################################
 
-set USB_CLK_HALF_PERIOD  7.500
+set USB_CLK_HALF_PERIOD  5.000
 set HS2_CLK_HALF_PERIOD 25.000
 
 # clocks:
@@ -114,8 +114,8 @@ set_input_delay -clock usb_clk -add_delay 2.000 [get_ports {     USB_nCE }];
 set_input_delay -clock usb_clk -add_delay 2.000 [get_ports {     USB_nRD }];
 set_input_delay -clock usb_clk -add_delay 2.000 [get_ports {     USB_nWR }];
 
-set_input_delay -clock usb_clk              -add_delay 0.000 [get_ports { USRDIP0 }];
-set_input_delay -clock usb_clk              -add_delay 0.000 [get_ports { USRDIP1 }];
+set_input_delay -clock usb_clk -add_delay 0.000 [get_ports { USRDIP0 }];
+set_input_delay -clock usb_clk -add_delay 0.000 [get_ports { USRDIP1 }];
 
 set_output_delay -clock usb_clk 0.000 [ get_ports { USB_D     }];
 set_output_delay -clock usb_clk 0.000 [ get_ports { CWIO_IO4  }];
