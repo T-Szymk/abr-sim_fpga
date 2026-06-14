@@ -68,7 +68,7 @@ module abr_fpga_cw310_top
   assign USRLED[5] = programmable_usrled; // Programmable User LED
   
 
-  assign USRLED[LED_COUNT-1:5] = '0;
+  assign USRLED[LED_COUNT-1:6] = '0;
 
   // ---------------------------------------------------------------------------
   // Clock Generation
