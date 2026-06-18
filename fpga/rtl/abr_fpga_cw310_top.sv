@@ -341,7 +341,7 @@ module abr_fpga_cw310_top
   ////////////
   // STAT 1 //
   ////////////
-  assign dut_stat1[   0] = m_xfer_busy | dut_ctrl1_sync[0]; // busy is driven by xfer_start reg OR xfer busy;
+  assign dut_stat1[   0] = m_xfer_busy;
   assign dut_stat1[   1] = m_xfer_err;
   assign dut_stat1[31:2] = '0;
 

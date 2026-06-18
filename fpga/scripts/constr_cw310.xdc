@@ -94,14 +94,14 @@ set_case_analysis 0 [get_pins i_cw_clocks/CCLK_MUX/S]
 
 # CDC Paths #
 ## CTRL0
-set_false_path -from i_cw_reg_abr/dut_ctrl0_q_reg[0] -to dut_ctrl0_ff_reg[0][0];
+set_false_path -to [get_cells dut_ctrl0_ff_reg[0][*]]; # don't time paths into synchronising registers
 ## CTRL1
-set_false_path -from i_cw_reg_abr/dut_ctrl1_q_reg[0] -to dut_ctrl1_ff_reg[0][0];
+set_false_path -to [get_cells dut_ctrl1_ff_reg[0][*]]; # don't time paths into synchronising registers
 ## STATO
-set_false_path -from dut_rstn_sync_ff_reg[2] -to dut_stat0_ff_reg[0][0];
-set_false_path                               -to dut_stat0_ff_reg[0][1];
+set_false_path -to [get_cells dut_stat0_ff_reg[0][*]]; # don't time paths into synchronising registers
 ## STAT1
-set_false_path -from abr_memory_transfer_controller/state_q_reg -to dut_stat1_ff_reg[0][0];
+set_false_path -to [get_cells dut_stat1_ff_reg[0][*]]; # don't time paths into synchronising registers
+
 ## ABR INSTR
 # Set max delay to minimise skew between bits
 set_max_delay  -from i_cw_reg_abr/abr_instr_q_reg[*] -to abr_instr_ff_reg[0][*] -datapath_only [expr 2*$USB_CLK_HALF_PERIOD];

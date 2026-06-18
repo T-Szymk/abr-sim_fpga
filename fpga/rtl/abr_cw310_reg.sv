@@ -15,7 +15,8 @@
 //   0x0100–0x20FF  ABR_DBUFF  R/W  forwarded to external buffer module via
 //                                  buf_addr_o / buf_wdata_o / buf_wr_o /
 //                                  buf_rdata_i (not stored here)
-
+// ToDo: Improve naming such that functional names are used for assignment to
+// make it clear what is being assigned.
 module abr_cw310_reg
   import abr_fpga_pkg::*;
 #(
@@ -35,13 +36,13 @@ module abr_cw310_reg
   input  logic                                 reg_addrvalid,
 
   // R/W registers — values written by USB host, driven as outputs
-  output logic [                         31:0] dut_ctrl0_o,
-  output logic [                         31:0] dut_ctrl1_o,
-  output logic [                         31:0] abr_instr_o,
+  output logic [        CW_REG_DATA_WIDTH-1:0] dut_ctrl0_o,
+  output logic [        CW_REG_DATA_WIDTH-1:0] dut_ctrl1_o,
+  output logic [        CW_REG_DATA_WIDTH-1:0] abr_instr_o,
 
   // RO registers — values driven from external logic, readable by USB host
-  input  logic [                         31:0] dut_stat0_i,
-  input  logic [                         31:0] dut_stat1_i,
+  input  logic [        CW_REG_DATA_WIDTH-1:0] dut_stat0_i,
+  input  logic [        CW_REG_DATA_WIDTH-1:0] dut_stat1_i,
 
   // ABR_DBUFF passthrough — accesses forwarded to an external buffer module.
   // buf_addr_o is driven combinationally whenever the address falls in the
@@ -74,14 +75,28 @@ module abr_cw310_reg
   // ---------------------------------------------------------------------------
   // Internal signals
   // ---------------------------------------------------------------------------
-  logic [31:0] dut_ctrl0_q;
-  logic [31:0] dut_ctrl1_q;
-  logic [31:0] abr_instr_q;
+  logic [CW_REG_DATA_WIDTH-1:0] dut_ctrl0_q;
+  logic [CW_REG_DATA_WIDTH-1:0] dut_ctrl1_q;
+  logic [CW_REG_DATA_WIDTH-1:0] abr_instr_q;
 
   logic [pADDR_WIDTH-1:0]  full_byte_addr; // reconstructed 20-bit USB byte address
   logic [13:0]             reg_idx;        // register select within page 0
   logic [ 1:0]             byte_sel;       // byte within 32-bit register
   logic                    buf_sel;        // access targets the ABR_DBUFF region
+
+  logic [CW_REG_DATA_WIDTH-1:0] dut_stat0;
+  logic [CW_REG_DATA_WIDTH-1:0] dut_stat1;
+
+  logic instr_busy;
+  logic instr_run;
+
+  assign instr_busy = dut_stat1_i[0];
+  assign instr_run  = dut_ctrl1_q[0];
+
+  // break out any status signals which are driven by output of ctrl regs here
+  assign dut_stat0       = dut_stat0_i;
+  assign dut_stat1[   0] = instr_run | instr_busy; // xfer busy driven by instr_run | xfer_busy
+  assign dut_stat1[31:1] = dut_stat1_i[31:1];  
 
   // Full-width buffer offset subtraction — pADDR_WIDTH bits comfortably spans
   // the 0x0100–0x20FF window (0x20FF = 8447 < 2^20).
@@ -136,10 +151,10 @@ module abr_cw310_reg
       case (reg_idx)
         IDX_DUT_CTRL0: read_data = dut_ctrl0_q[{byte_sel, 3'b0} +: 8];
         IDX_DUT_CTRL1: read_data = dut_ctrl1_q[{byte_sel, 3'b0} +: 8];
-        IDX_DUT_STAT0: read_data = dut_stat0_i[{byte_sel, 3'b0} +: 8];
-        IDX_DUT_STAT1: read_data = dut_stat1_i[{byte_sel, 3'b0} +: 8];
+        IDX_DUT_STAT0: read_data =   dut_stat0[{byte_sel, 3'b0} +: 8];
+        IDX_DUT_STAT1: read_data =   dut_stat1[{byte_sel, 3'b0} +: 8];
         IDX_ABR_INSTR: read_data = abr_instr_q[{byte_sel, 3'b0} +: 8];
-        default:        read_data = 8'h00;
+        default:       read_data = 8'h00;
       endcase
     end
   end
