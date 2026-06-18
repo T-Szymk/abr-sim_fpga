@@ -13,26 +13,26 @@
 
 #### DUT_CTRL0
 
-| Bits     | Identifier  | Access | Reset | Notes                 |
-| :------- | :---------- | :----- | :---- | :---                  |
-| \[31:1\] | _reserved_  | \-     | \-    | \-                    |
-| \[0\]    | DUT_nRST    | R/W    | 0x0   | Controls Reset of ABR |
+| Bits     | Identifier  | Access | Reset | Notes                                |
+| :------- | :---------- | :----- | :---- | :---                                 |
+| \[31:1\] | _reserved_  | \-     | \-    | \-                                   |
+| \[0\]    | DUT_nRST    | R/W    | 0x0   | Controls Reset of ABR DUT (not FPGA) |
 
 #### DUT_CTRL1
 
-| Bits     | Identifier  | Access | Reset | Notes                                         |
-| :------- | :---------- | :----- | :---- | :---                                          |
-| \[31\]   | USRLED5     | \-     | \-    | Programmable LED                              |
-| \[30:1\] | _reserved_  | \-     | \-    | \-                                            |
-| \[0\]    | INSTR_RUN   | R/W    | 0x0   | Process instruction within ABR_INSTR register |
+| Bits     | Identifier  | Access | Reset | Notes                                                  |
+| :------- | :---------- | :----- | :---- | :---                                                   |
+| \[31\]   | USRLED5     | \-     | \-    | Programmable LED for debug                             |
+| \[30:1\] | _reserved_  | \-     | \-    | \-                                                     |
+| \[0\]    | INSTR_RUN   | R/W    | 0x0   | Commit instruction contained within ABR_INSTR register |
 
 #### DUT_STAT0
 
-| Bits     | Identifier    | Access | Reset | Notes               |
-| :------- | :----------   | :----- | :---- | :---                |
-| \[31:2\] | _reserved_    | \-     | \-    | \-                  |
-| \[1\]    | DUT_BUSY      | R/W    | 0x0   | Busy status of ABR  |
-| \[0\]    | DUT_RST_STAT  | R/W    | 0x0   | Reset status of ABR |
+| Bits     | Identifier    | Access | Reset | Notes                   |
+| :------- | :----------   | :----- | :---- | :---                    |
+| \[31:2\] | _reserved_    | \-     | \-    | \-                      |
+| \[1\]    | DUT_BUSY      | R/W    | 0x0   | Busy status of ABR DUT  |
+| \[0\]    | DUT_RST_STAT  | R/W    | 0x0   | Reset status of ABR DUT |
 
 #### DUT_STAT1
 
