@@ -64,6 +64,11 @@ package abr_fpga_pkg;
     localparam int unsigned CW_REG_DATA_WIDTH_BYTES = CW_REG_DATA_WIDTH / 8;
 
     // -----------------------------------------------------------------------
+    // CW Identity String
+    // -----------------------------------------------------------------------
+    localparam logic [CW_REG_DATA_WIDTH-1:0] CW_IDENTIFIER = 'h0123_4567;
+
+    // -----------------------------------------------------------------------
     // ABR Instruction Parameters
     // -----------------------------------------------------------------------
     localparam int unsigned INSTR_ADDR_WIDTH = 16;
@@ -81,11 +86,12 @@ package abr_fpga_pkg;
     // reg_bytecnt[6:2] selects the register; reg_bytecnt[1:0] selects the
     // byte within the 32-bit register.
     // -----------------------------------------------------------------------
-    localparam logic [USB_ADDR_WIDTH-1:0] CW310_ADDR_DUT_CTRL0 = 'h00;
-    localparam logic [USB_ADDR_WIDTH-1:0] CW310_ADDR_DUT_CTRL1 = 'h04;
-    localparam logic [USB_ADDR_WIDTH-1:0] CW310_ADDR_DUT_STAT0 = 'h08;
-    localparam logic [USB_ADDR_WIDTH-1:0] CW310_ADDR_DUT_STAT1 = 'h0C;
-    localparam logic [USB_ADDR_WIDTH-1:0] CW310_ADDR_ABR_INSTR = 'h10;
+    localparam logic [USB_ADDR_WIDTH-1:0] CW310_ADDR_DUT_IDENT = 'h00;
+    localparam logic [USB_ADDR_WIDTH-1:0] CW310_ADDR_DUT_CTRL0 = 'h04;
+    localparam logic [USB_ADDR_WIDTH-1:0] CW310_ADDR_DUT_CTRL1 = 'h08;
+    localparam logic [USB_ADDR_WIDTH-1:0] CW310_ADDR_DUT_STAT0 = 'h0C;
+    localparam logic [USB_ADDR_WIDTH-1:0] CW310_ADDR_DUT_STAT1 = 'h10;
+    localparam logic [USB_ADDR_WIDTH-1:0] CW310_ADDR_ABR_INSTR = 'h14;
 
     // ABR_DBUFF — 8192-byte data buffer, forwarded to an external module.
     // Access within this range is NOT stored here; writes are forwarded as a

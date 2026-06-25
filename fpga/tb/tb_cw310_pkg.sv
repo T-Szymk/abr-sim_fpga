@@ -791,6 +791,33 @@ package tb_cw310_pkg;
 
   endtask : dut_mlkem_decaps
 
+  // Verify name and version of accelerator ML-DSA core
+  task automatic verify_ident (   
+    ref    UsbBus_t    usb
+  );
+    begin
+
+      CwRegWord_t tmp_id;
+      UsbAddr_t   tmp_addr;
+
+      $display("\n[%16t ns] TB : Verifying Platform Identifier", $realtime/1ns);
+
+      tmp_addr = UsbAddr_t'(CW310_ADDR_DUT_IDENT);
+      // read IDENT register
+      read_word(tmp_addr, tmp_id, usb);
+
+      a_ident : assert (AbrRegWrd_t'(tmp_id) == CW_IDENTIFIER) else 
+        $display("[%16t ns] TB : Platform Identifier verification failed!", $realtime/1ns);
+
+      $display("[%16t ns] TB : Read Platform Identifier:", $realtime/1ns);
+      $display("\t\tIDENT    : 0x%H", tmp_id);
+
+      $display("[%16t ns] TB : Platform Identifier verification complete!", $realtime/1ns);
+
+    end
+      
+  endtask : verify_ident
+
 
   // Verify name and version of accelerator ML-DSA core
   task automatic dut_mldsa_verify_meta (   
@@ -902,11 +929,12 @@ package tb_cw310_pkg;
       
   endtask : dut_mlkem_verify_meta
 
-  // Verify name and version of accelerator ML-KEM core
+  // Verify platform ID & name and version of each accelerator core
   task automatic dut_verify_meta (   
     ref    UsbBus_t    usb
   );
     begin
+      verify_ident(usb);
       dut_mldsa_verify_meta(usb);
       dut_mlkem_verify_meta(usb);
     end

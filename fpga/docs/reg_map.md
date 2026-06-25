@@ -2,23 +2,36 @@
 
 | Base Address | End Address | Field       | Notes                       |
 | ---          | ---         | ---         | ---                         |
-| `0x0000`     | `0x0004`    | `DUT_CTRL0` | R/W                         |
-| `0x0004`     | `0x0008`    | `DUT_CTRL1` | R/W                         |
-| `0x0008`     | `0x000C`    | `DUT_STAT0` | Read-only                   |
-| `0x000C`     | `0x0010`    | `DUT_STAT1` | Read-only                   |
-| `0x0010`     | `0x0014`    | `ABR_INSTR` | R/W                         |
+| `0x0000`     | `0x0004`    | `IDENT`     | Read-only                   |
+| `0x0004`     | `0x0008`    | `DUT_CTRL0` | R/W                         |
+| `0x0008`     | `0x000C`    | `DUT_CTRL1` | R/W                         |
+| `0x000C`     | `0x0010`    | `DUT_STAT0` | Read-only                   |
+| `0x0010`     | `0x0014`    | `DUT_STAT1` | Read-only                   |
+| `0x0014`     | `0x0018`    | `ABR_INSTR` | R/W                         |
 | `0x0100`     | `0x2100`    | `ABR_DBUFF` | R/W - 8192 Byte data buffer |
 
 ### Register bitfields 
 
-#### DUT_CTRL0
+#### IDENT 
+
+_FPGA identifier_
+
+| Bits     | Identifier  | Access | Reset | Notes       |
+| :------- | :---------- | :----- | :---- | :---        |
+| \[31:0\] | ID_STRING   | R/W    | 0x0   | 0x0123_4567 |
+
+#### DUT_CTRL0 
+
+_Controls for DUT (ABR Instance)_
 
 | Bits     | Identifier  | Access | Reset | Notes                                |
 | :------- | :---------- | :----- | :---- | :---                                 |
 | \[31:1\] | _reserved_  | \-     | \-    | \-                                   |
 | \[0\]    | DUT_nRST    | R/W    | 0x0   | Controls Reset of ABR DUT (not FPGA) |
 
-#### DUT_CTRL1
+#### DUT_CTRL1 
+
+_Controls for platform (FPGA components surrounding DUT)_
 
 | Bits     | Identifier  | Access | Reset | Notes                                                  |
 | :------- | :---------- | :----- | :---- | :---                                                   |
@@ -26,7 +39,9 @@
 | \[30:1\] | _reserved_  | \-     | \-    | \-                                                     |
 | \[0\]    | INSTR_RUN   | R/W    | 0x0   | Commit instruction contained within ABR_INSTR register |
 
-#### DUT_STAT0
+#### DUT_STAT0 
+
+_Status of DUT (ABR Instance)_
 
 | Bits     | Identifier    | Access | Reset | Notes                   |
 | :------- | :----------   | :----- | :---- | :---                    |
@@ -34,7 +49,9 @@
 | \[1\]    | DUT_BUSY      | R/W    | 0x0   | Busy status of ABR DUT  |
 | \[0\]    | DUT_RST_STAT  | R/W    | 0x0   | Reset status of ABR DUT |
 
-#### DUT_STAT1
+#### DUT_STAT1 
+
+_Status of platform (FPGA components surrounding DUT)_
 
 | Bits     | Identifier    | Access | Reset | Notes                            |
 | :------- | :----------   | :----- | :---- | :---                             |
@@ -43,13 +60,17 @@
 | \[0\]    | INSTR_BUSY    | R/W    | 0x0   | Status of instruction processing |
 
 
-#### ABR_INSTR
+#### ABR_INSTR 
+
+_Instruction register to send read/write commands to DUT_  
 
 | Bits      | Identifier  | Access | Reset | Notes                                       |
 | :-------  | :---------- | :----- | :---- | :---                                        |
 | \[31:16\] | ABR_ADDR    | R/W    | 0x0   | AHB Register address for ABR read/write op. |
 | \[15: 4\] | LEN_WRDS    | \-     | \-    | Length of access (in 32b/4B words)          |
 | \[3 : 0\] | OP_CODE     | R/W    | 0x0   | Operation                                   |
+
+Data buffer is a 8kB scratchpad memory and therefore does not use any encoding.
 
 ##### Operation Encoding
 

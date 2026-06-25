@@ -7,12 +7,13 @@
 //   reg_bytecnt[1:0]    — selects the byte within that register
 //
 // Register map (USB byte addresses, matching abr_fpga_pkg CW310_ADDR_* constants):
-//   0x0000–0x0003  DUT_CTRL0  R/W  driven out as dut_ctrl0_o
-//   0x0004–0x0007  DUT_CTRL1  R/W  driven out as dut_ctrl1_o
-//   0x0008–0x000B  DUT_STAT0  RO   sampled from dut_stat0_i
-//   0x000C–0x000F  DUT_STAT1  RO   sampled from dut_stat1_i
-//   0x0010–0x0013  ABR_INSTR  R/W  driven out as abr_instr_o
-//   0x0100–0x20FF  ABR_DBUFF  R/W  forwarded to external buffer module via
+//   0x0000-0x0003  IDENT      RO   sampled from dut_ident_q
+//   0x0004-0x0007  DUT_CTRL0  R/W  driven out as dut_ctrl0_o
+//   0x0008-0x000B  DUT_CTRL1  R/W  driven out as dut_ctrl1_o
+//   0x000C-0x000F  DUT_STAT0  RO   sampled from dut_stat0_i
+//   0x0010-0x0013  DUT_STAT1  RO   sampled from dut_stat1_i
+//   0x0014-0x0017  ABR_INSTR  R/W  driven out as abr_instr_o
+//   0x0100-0x20FF  ABR_DBUFF  R/W  forwarded to external buffer module via
 //                                  buf_addr_o / buf_wdata_o / buf_wr_o /
 //                                  buf_rdata_i (not stored here)
 // ToDo: Improve naming such that functional names are used for assignment to
@@ -58,11 +59,12 @@ module abr_cw310_reg
   // ---------------------------------------------------------------------------
   // Register index constants (reg_bytecnt[15:2]) derived from package addresses
   // ---------------------------------------------------------------------------
-  localparam logic [13:0] IDX_DUT_CTRL0 = CW310_ADDR_DUT_CTRL0[15:2]; // 15'h00
-  localparam logic [13:0] IDX_DUT_CTRL1 = CW310_ADDR_DUT_CTRL1[15:2]; // 15'h01
-  localparam logic [13:0] IDX_DUT_STAT0 = CW310_ADDR_DUT_STAT0[15:2]; // 15'h02
-  localparam logic [13:0] IDX_DUT_STAT1 = CW310_ADDR_DUT_STAT1[15:2]; // 15'h03
-  localparam logic [13:0] IDX_ABR_INSTR = CW310_ADDR_ABR_INSTR[15:2]; // 15'h04
+  localparam logic [13:0] IDX_DUT_IDENT = CW310_ADDR_DUT_IDENT[15:2]; // 15'h00
+  localparam logic [13:0] IDX_DUT_CTRL0 = CW310_ADDR_DUT_CTRL0[15:2]; // 15'h01
+  localparam logic [13:0] IDX_DUT_CTRL1 = CW310_ADDR_DUT_CTRL1[15:2]; // 15'h02
+  localparam logic [13:0] IDX_DUT_STAT0 = CW310_ADDR_DUT_STAT0[15:2]; // 15'h03
+  localparam logic [13:0] IDX_DUT_STAT1 = CW310_ADDR_DUT_STAT1[15:2]; // 15'h04
+  localparam logic [13:0] IDX_ABR_INSTR = CW310_ADDR_ABR_INSTR[15:2]; // 15'h05
 
   // ---------------------------------------------------------------------------
   // Buffer range bounds expressed as reg_address values.
@@ -75,6 +77,7 @@ module abr_cw310_reg
   // ---------------------------------------------------------------------------
   // Internal signals
   // ---------------------------------------------------------------------------
+  logic [CW_REG_DATA_WIDTH-1:0] dut_ident_q;
   logic [CW_REG_DATA_WIDTH-1:0] dut_ctrl0_q;
   logic [CW_REG_DATA_WIDTH-1:0] dut_ctrl1_q;
   logic [CW_REG_DATA_WIDTH-1:0] abr_instr_q;
@@ -123,6 +126,7 @@ module abr_cw310_reg
   // ---------------------------------------------------------------------------
   always_ff @(posedge usb_clk) begin
     if (reset_i) begin
+      dut_ident_q <= CW_IDENTIFIER;
       dut_ctrl0_q <= '0;
       dut_ctrl1_q <= '0;
       abr_instr_q <= '0;
@@ -149,6 +153,7 @@ module abr_cw310_reg
       read_data = buf_rdata_i;
     end else if (reg_read) begin
       case (reg_idx)
+        IDX_DUT_IDENT: read_data = dut_ident_q[{byte_sel, 3'b0} +: 8];
         IDX_DUT_CTRL0: read_data = dut_ctrl0_q[{byte_sel, 3'b0} +: 8];
         IDX_DUT_CTRL1: read_data = dut_ctrl1_q[{byte_sel, 3'b0} +: 8];
         IDX_DUT_STAT0: read_data =   dut_stat0[{byte_sel, 3'b0} +: 8];
