@@ -59,10 +59,6 @@ module tb_abr_fpga;
 
   initial begin
 
-    logic dut_busy = 1'b1;
-    CwRegWord_t read_data;
-    AbrInstr_t abr_instr;
-
     CwRegWord_t mlkem_seed_d  [];
     CwRegWord_t mlkem_seed_z  [];
     CwRegWord_t mlkem_entropy [];
@@ -84,7 +80,7 @@ module tb_abr_fpga;
     CwRegWord_t exp_ct     [];
     CwRegWord_t exp_ss     [];
 
-    int unsigned kat_errors = 0;
+    automatic int unsigned kat_errors = 0;
 
     $display("[%16t ns] TB : Starting tb_abr_fpga testbench", $realtime/1ns);
 
@@ -235,10 +231,7 @@ module tb_abr_fpga;
   wire #1 usb_wrn_dly = usb.wrn;
   wire #1 usb_cen_dly = usb.cen;
 
-  abr_fpga_cw310_top #(
-    .pBYTECNT_SIZE( USB_BCOUNT_SIZE ),
-    .pADDR_WIDTH  ( USB_ADDR_WIDTH  )
-   ) abr_fpga_cw310_top (
+  abr_fpga_cw310_top i_dut (
     .PLL_CLK_1  ( tb_pll_clk       ),
     .CWIO_HS1   ( /*NC*/           ),
     .CWIO_HS2   ( 1'b0             ),

@@ -148,7 +148,7 @@ package tb_cw310_pkg;
   // Helper functions
   // ------------------------------------------------------------------------ 
   function automatic string regaddr2name (
-    UsbAddr_t address
+    RegAddr_t address
   );
     begin
       case (address) inside
@@ -272,16 +272,18 @@ package tb_cw310_pkg;
     end
   endtask : read_byte
 
-  // write 4 Bytes of data to [address + 3 : address]
+  // write 4 Bytes of data to the 32-bit word at word address `address`.
+  // address is a USB word address (USB_A[19:2]); the byte-select field
+  // USB_A[1:0] is appended internally for each byte lane.
   task automatic write_word(
-    input  UsbAddr_t   address,
+    input  RegAddr_t   address,
     input  CwRegWord_t data,
     ref    UsbBus_t    usb
   );
     begin
       for (int unsigned subbyte = 0; subbyte < CW_REG_DATA_WIDTH_BYTES; subbyte++) begin
         write_byte(
-          address + UsbAddr_t'(subbyte),
+          UsbAddr_t'({address, ByteCnt_t'(subbyte)}),
           data[subbyte],
           usb
         );
@@ -296,16 +298,18 @@ package tb_cw310_pkg;
     end
   endtask : write_word
 
-  // read 4 Bytes of data from [address + 3 : address]
+  // read 4 Bytes of data from the 32-bit word at word address `address`.
+  // address is a USB word address (USB_A[19:2]); the byte-select field
+  // USB_A[1:0] is appended internally for each byte lane.
   task automatic read_word (
-    input  UsbAddr_t   address,
+    input  RegAddr_t   address,
     output CwRegWord_t data,
     ref    UsbBus_t    usb
   );
     begin
       for (int unsigned subbyte = 0; subbyte < CW_REG_DATA_WIDTH_BYTES; subbyte++) begin
         read_byte(
-          address + UsbAddr_t'(subbyte),
+          UsbAddr_t'({address, ByteCnt_t'(subbyte)}),
           data[subbyte],
           usb
         );
@@ -427,7 +431,7 @@ package tb_cw310_pkg;
 
       // write data into data buffer
       for (int unsigned word = 0; word < data.size(); word++) begin
-        UsbAddr_t tmp_addr = UsbAddr_t'(CW310_ADDR_ABR_DBUFF_BASE + (word * CW_REG_DATA_WIDTH_BYTES));
+        RegAddr_t tmp_addr = RegAddr_t'(CW310_ADDR_ABR_DBUFF_BASE + word);
         write_word(tmp_addr, data[word], usb);
       end
 
@@ -463,7 +467,7 @@ package tb_cw310_pkg;
       // read data from data buffer
       data = new[unsigned'(n_words)];
       for (int unsigned word = 0; word < unsigned'(n_words); word++) begin
-        UsbAddr_t tmp_addr = UsbAddr_t'(CW310_ADDR_ABR_DBUFF_BASE + (word * CW_REG_DATA_WIDTH_BYTES));
+        RegAddr_t tmp_addr = RegAddr_t'(CW310_ADDR_ABR_DBUFF_BASE + word);
         read_word(tmp_addr, data[word], usb);
       end
 
@@ -798,13 +802,11 @@ package tb_cw310_pkg;
     begin
 
       CwRegWord_t tmp_id;
-      UsbAddr_t   tmp_addr;
 
       $display("\n[%16t ns] TB : Verifying Platform Identifier", $realtime/1ns);
 
-      tmp_addr = UsbAddr_t'(CW310_ADDR_DUT_IDENT);
       // read IDENT register
-      read_word(tmp_addr, tmp_id, usb);
+      read_word(CW310_ADDR_DUT_IDENT, tmp_id, usb);
 
       a_ident : assert (AbrRegWrd_t'(tmp_id) == CW_IDENTIFIER) else 
         $display("[%16t ns] TB : Platform Identifier verification failed!", $realtime/1ns);
@@ -841,7 +843,7 @@ package tb_cw310_pkg;
 
       for (int unsigned word = 0; word < unsigned'(ABR_WRDS_MLDSA_NAME); word++) begin
         // read data buffer
-        UsbAddr_t tmp_addr = UsbAddr_t'(CW310_ADDR_ABR_DBUFF_BASE + (word * CW_REG_DATA_WIDTH_BYTES));
+        RegAddr_t tmp_addr = RegAddr_t'(CW310_ADDR_ABR_DBUFF_BASE + word);
         read_word(tmp_addr, tmp_name[word], usb);
       end
 
@@ -855,7 +857,7 @@ package tb_cw310_pkg;
 
       for (int unsigned word = 0; word < unsigned'(ABR_WRDS_MLDSA_VERSION); word++) begin
         // read data buffer
-        UsbAddr_t tmp_addr = UsbAddr_t'(CW310_ADDR_ABR_DBUFF_BASE + (word * CW_REG_DATA_WIDTH_BYTES));
+        RegAddr_t tmp_addr = RegAddr_t'(CW310_ADDR_ABR_DBUFF_BASE + word);
         read_word(tmp_addr, tmp_vers[word], usb);
       end
 
@@ -896,7 +898,7 @@ package tb_cw310_pkg;
 
       for (int unsigned word = 0; word < unsigned'(ABR_WRDS_MLKEM_NAME); word++) begin
         // read data buffer
-        UsbAddr_t tmp_addr = UsbAddr_t'(CW310_ADDR_ABR_DBUFF_BASE + (word * CW_REG_DATA_WIDTH_BYTES));
+        RegAddr_t tmp_addr = RegAddr_t'(CW310_ADDR_ABR_DBUFF_BASE + word);
         read_word(tmp_addr, tmp_name[word], usb);
       end
 
@@ -910,7 +912,7 @@ package tb_cw310_pkg;
 
       for (int unsigned word = 0; word < unsigned'(ABR_WRDS_MLKEM_VERSION); word++) begin
         // read data buffer
-        UsbAddr_t tmp_addr = UsbAddr_t'(CW310_ADDR_ABR_DBUFF_BASE + (word * CW_REG_DATA_WIDTH_BYTES));
+        RegAddr_t tmp_addr = RegAddr_t'(CW310_ADDR_ABR_DBUFF_BASE + word);
         read_word(tmp_addr, tmp_vers[word], usb);
       end
 

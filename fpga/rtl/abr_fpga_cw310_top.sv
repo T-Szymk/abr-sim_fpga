@@ -3,10 +3,7 @@
 (* DONT_TOUCH = "yes" *)
 module abr_fpga_cw310_top 
   import abr_fpga_pkg::*; 
-#(
-  parameter integer unsigned pBYTECNT_SIZE =   2,
-  parameter integer unsigned pADDR_WIDTH   =  20
-) (
+(
   input  wire                      PLL_CLK_1,   // clk
   output wire                      CWIO_HS1,    // output clock for scope triggering    
   input  wire                      CWIO_HS2,
@@ -194,8 +191,8 @@ module abr_fpga_cw310_top
   // ---------------------------------------------------------------------------
 
   cw310_usb_reg_fe #(
-    .pBYTECNT_SIZE ( pBYTECNT_SIZE    ),
-    .pADDR_WIDTH   ( pADDR_WIDTH      )
+    .pBYTECNT_SIZE ( USB_BCOUNT_SIZE  ),
+    .pADDR_WIDTH   ( USB_ADDR_WIDTH   )
   ) i_cw_usb_reg_fe (
     .rst           ( usb_reset        ),
     .usb_clk       ( usb_clk_buf      ), 
@@ -216,7 +213,7 @@ module abr_fpga_cw310_top
     .reg_addrvalid ( reg_addrvalid    )
   );
 
-  logic [      pADDR_WIDTH-1:0] buff_addr_a;
+  logic [   USB_ADDR_WIDTH-1:0] buff_addr_a;
   logic [     A_DATA_WIDTH-1:0] buff_wdata_a;
   logic                         buff_we_a;
   logic [     A_DATA_WIDTH-1:0] buff_rdata_a;
@@ -240,10 +237,7 @@ module abr_fpga_cw310_top
   logic [CW_REG_DATA_WIDTH-1:0] dut_stat0_sync;
   logic [CW_REG_DATA_WIDTH-1:0] dut_stat1_sync;
 
-  abr_cw310_reg #(
-    .pBYTECNT_SIZE  ( pBYTECNT_SIZE ),
-    .pADDR_WIDTH    ( pADDR_WIDTH   )
-  ) i_cw_reg_abr (
+  abr_cw310_reg i_cw_reg_abr (
     // USB register interface
     .reset_i        ( usb_reset      ),
     .usb_clk        ( usb_clk_buf    ),
@@ -492,9 +486,9 @@ module abr_fpga_cw310_top
     .addr_i     ( ahb_mgr_addr  ),
     .wdata_i    ( ahb_mgr_wdata ),
     .ready_o    ( ahb_mgr_ready ),
-    .done_o     (               ),
+    .done_o     ( /* NC */      ),
     .rdata_o    ( ahb_mgr_rdata ),
-    .error_o    (               ),
+    .error_o    ( /* NC */      ),
     // AHB interface
     .haddr_o    ( ahb_haddr     ),
     .hwdata_o   ( ahb_hwdata    ),

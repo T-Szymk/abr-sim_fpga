@@ -259,7 +259,6 @@ VLOG_OPTS     += +define+TECH_SPECIFIC_ICG \
                  +define+SIMULATION \
                  +define+NOMIG \
                  +define+__ICARUS__ \
-                 +define+USE_ABR_SIM_MODEL \
                  +define+VECTOR_DIR=\"$(FPGA_TB_DIR)/vectors\"
 
 
@@ -322,7 +321,7 @@ sim: sim_opt
 	-c \
 	-wlf $(Q_BUILD_DIR)/$(SIM_TOP_MODULE)_$(DATE).wlf \
 	$(SIM_TOP_MODULE)_opt \
-	-do "log -r /*; log -r /tb_abr_fpga/dut/result_pk; log -r /tb_abr_fpga/dut/result_sk; log -r /tb_abr_fpga/dut/result_sig; log -r /tb_abr_fpga/dut/result_vfy; run -all"
+	-do "log -r /*; run -all"
 
 
 sim_clean:

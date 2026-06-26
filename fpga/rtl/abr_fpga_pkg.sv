@@ -20,7 +20,7 @@ package abr_fpga_pkg;
 
     localparam int unsigned USB_DATA_WIDTH      =  8;
     localparam int unsigned USB_ADDR_WIDTH      = 20;
-    localparam int unsigned USB_BCOUNT_SIZE     =  2;
+    localparam int unsigned USB_BCOUNT_SIZE     =  7; // matches value in CW CW310.py
     localparam int unsigned USB_WORD_ADDR_WIDTH = USB_ADDR_WIDTH - USB_BCOUNT_SIZE;
 
     localparam int unsigned CLK_SETTINGS_WIDTH = 5;
@@ -82,23 +82,23 @@ package abr_fpga_pkg;
 
     // -----------------------------------------------------------------------
     // CW310 USB register map
-    // Byte addresses within the first 128-byte page (reg_address == 0).
-    // reg_bytecnt[6:2] selects the register; reg_bytecnt[1:0] selects the
-    // byte within the 32-bit register.
+    // Word addresses: value of USB_A[USB_ADDR_WIDTH-1:USB_BCOUNT_SIZE] used
+    // to access each 32-bit register.  The byte-select within the word is
+    // carried on USB_A[USB_BCOUNT_SIZE-1:0] and is handled separately.
     // -----------------------------------------------------------------------
-    localparam logic [USB_ADDR_WIDTH-1:0] CW310_ADDR_DUT_IDENT = 'h00;
-    localparam logic [USB_ADDR_WIDTH-1:0] CW310_ADDR_DUT_CTRL0 = 'h04;
-    localparam logic [USB_ADDR_WIDTH-1:0] CW310_ADDR_DUT_CTRL1 = 'h08;
-    localparam logic [USB_ADDR_WIDTH-1:0] CW310_ADDR_DUT_STAT0 = 'h0C;
-    localparam logic [USB_ADDR_WIDTH-1:0] CW310_ADDR_DUT_STAT1 = 'h10;
-    localparam logic [USB_ADDR_WIDTH-1:0] CW310_ADDR_ABR_INSTR = 'h14;
+    localparam logic [USB_WORD_ADDR_WIDTH-1:0] CW310_ADDR_DUT_IDENT      = 'h0000;
+    localparam logic [USB_WORD_ADDR_WIDTH-1:0] CW310_ADDR_DUT_CTRL0      = 'h0001;
+    localparam logic [USB_WORD_ADDR_WIDTH-1:0] CW310_ADDR_DUT_CTRL1      = 'h0002;
+    localparam logic [USB_WORD_ADDR_WIDTH-1:0] CW310_ADDR_DUT_STAT0      = 'h0003;
+    localparam logic [USB_WORD_ADDR_WIDTH-1:0] CW310_ADDR_DUT_STAT1      = 'h0004;
+    localparam logic [USB_WORD_ADDR_WIDTH-1:0] CW310_ADDR_ABR_INSTR      = 'h0005;
 
     // ABR_DBUFF — 8192-byte data buffer, forwarded to an external module.
     // Access within this range is NOT stored here; writes are forwarded as a
     // pulsed strobe and reads are returned from an external input port.
-    localparam logic [USB_ADDR_WIDTH-1:0] CW310_ADDR_ABR_DBUFF_BASE = 'h0100;  // inclusive
-    localparam logic [USB_ADDR_WIDTH-1:0] CW310_ADDR_ABR_DBUFF_END  = 'h2100;  // exclusive
-    localparam int unsigned CW310_ABR_DBUFF_ADDR_W    =            // = 13
+    localparam logic [USB_WORD_ADDR_WIDTH-1:0] CW310_ADDR_ABR_DBUFF_BASE = 'h0040;  // inclusive
+    localparam logic [USB_WORD_ADDR_WIDTH-1:0] CW310_ADDR_ABR_DBUFF_END  = 'h0840;  // exclusive
+    localparam int unsigned CW310_ABR_DBUFF_ADDR_W =           // = 11
         $clog2(CW310_ADDR_ABR_DBUFF_END - CW310_ADDR_ABR_DBUFF_BASE);
 
 endpackage

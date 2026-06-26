@@ -20,59 +20,50 @@
 // make it clear what is being assigned.
 module abr_cw310_reg
   import abr_fpga_pkg::*;
-#(
-  parameter integer unsigned pBYTECNT_SIZE = 2,
-  parameter integer unsigned pADDR_WIDTH   = 20
-) (
-  input  logic                                  reset_i,
-  input  logic                                  usb_clk,
+(
+  input  logic                           reset_i,
+  input  logic                           usb_clk,
 
   // Interface from cw310_usb_reg_fe
-  input  logic [pADDR_WIDTH-pBYTECNT_SIZE-1:0] reg_address,
-  input  logic [            pBYTECNT_SIZE-1:0] reg_bytecnt,
-  output logic [                          7:0] read_data,
-  input  logic [                          7:0] write_data,
-  input  logic                                 reg_read,
-  input  logic                                 reg_write,
-  input  logic                                 reg_addrvalid,
+  input  logic [USB_WORD_ADDR_WIDTH-1:0] reg_address,
+  input  logic [    USB_BCOUNT_SIZE-1:0] reg_bytecnt,
+  output logic [                    7:0] read_data,
+  input  logic [                    7:0] write_data,
+  input  logic                           reg_read,
+  input  logic                           reg_write,
+  input  logic                           reg_addrvalid,
 
   // R/W registers — values written by USB host, driven as outputs
-  output logic [        CW_REG_DATA_WIDTH-1:0] dut_ctrl0_o,
-  output logic [        CW_REG_DATA_WIDTH-1:0] dut_ctrl1_o,
-  output logic [        CW_REG_DATA_WIDTH-1:0] abr_instr_o,
+  output logic [ CW_REG_DATA_WIDTH-1:0] dut_ctrl0_o,
+  output logic [ CW_REG_DATA_WIDTH-1:0] dut_ctrl1_o,
+  output logic [ CW_REG_DATA_WIDTH-1:0] abr_instr_o,
 
   // RO registers — values driven from external logic, readable by USB host
-  input  logic [        CW_REG_DATA_WIDTH-1:0] dut_stat0_i,
-  input  logic [        CW_REG_DATA_WIDTH-1:0] dut_stat1_i,
+  input  logic [ CW_REG_DATA_WIDTH-1:0] dut_stat0_i,
+  input  logic [ CW_REG_DATA_WIDTH-1:0] dut_stat1_i,
 
   // ABR_DBUFF passthrough — accesses forwarded to an external buffer module.
   // buf_addr_o is driven combinationally whenever the address falls in the
   // buffer range; buf_wr_o is pulsed for one USB clock on each write byte.
-  output logic [              pADDR_WIDTH-1:0] buf_addr_o,
-  output logic [                          7:0] buf_wdata_o,
-  output logic                                 buf_wr_o,
-  input  logic [                          7:0] buf_rdata_i
+  output logic [    USB_ADDR_WIDTH-1:0] buf_addr_o,
+  output logic [                   7:0] buf_wdata_o,
+  output logic                          buf_wr_o,
+  input  logic [                   7:0] buf_rdata_i
 );
 
   timeunit 1ns/1ps;
 
   // ---------------------------------------------------------------------------
-  // Register index constants (reg_bytecnt[15:2]) derived from package addresses
+  // Only 4-Byte word operations are permitted on this design
   // ---------------------------------------------------------------------------
-  localparam logic [13:0] IDX_DUT_IDENT = CW310_ADDR_DUT_IDENT[15:2]; // 15'h00
-  localparam logic [13:0] IDX_DUT_CTRL0 = CW310_ADDR_DUT_CTRL0[15:2]; // 15'h01
-  localparam logic [13:0] IDX_DUT_CTRL1 = CW310_ADDR_DUT_CTRL1[15:2]; // 15'h02
-  localparam logic [13:0] IDX_DUT_STAT0 = CW310_ADDR_DUT_STAT0[15:2]; // 15'h03
-  localparam logic [13:0] IDX_DUT_STAT1 = CW310_ADDR_DUT_STAT1[15:2]; // 15'h04
-  localparam logic [13:0] IDX_ABR_INSTR = CW310_ADDR_ABR_INSTR[15:2]; // 15'h05
+  localparam int unsigned ByteSelWidth = 2; // $clog2(4)
 
   // ---------------------------------------------------------------------------
-  // Buffer range bounds expressed as reg_address values.
-  // reg_address = USB_A[19:pBYTECNT_SIZE], so each unit is 2^pBYTECNT_SIZE bytes.
-  // With pBYTECNT_SIZE=7: DBUFF_BASE=0x0100>>7=2, DBUFF_HI=0x20FF>>7=65.
+  // Buffer range bounds expressed as reg_address (word-address) values.
+  // CW310_ADDR_ABR_DBUFF_* are already word addresses so no shift is needed.
   // ---------------------------------------------------------------------------
-  localparam int DBUFF_ADDR_LO = int'(CW310_ADDR_ABR_DBUFF_BASE) >> pBYTECNT_SIZE;
-  localparam int DBUFF_ADDR_HI = (int'(CW310_ADDR_ABR_DBUFF_END) - 1) >> pBYTECNT_SIZE;
+  localparam int unsigned DBUFF_ADDR_LO = unsigned'(CW310_ADDR_ABR_DBUFF_BASE);
+  localparam int unsigned DBUFF_ADDR_HI = unsigned'(CW310_ADDR_ABR_DBUFF_END) - 1;
 
   // ---------------------------------------------------------------------------
   // Internal signals
@@ -82,10 +73,9 @@ module abr_cw310_reg
   logic [CW_REG_DATA_WIDTH-1:0] dut_ctrl1_q;
   logic [CW_REG_DATA_WIDTH-1:0] abr_instr_q;
 
-  logic [pADDR_WIDTH-1:0]  full_byte_addr; // reconstructed 20-bit USB byte address
-  logic [13:0]             reg_idx;        // register select within page 0
-  logic [ 1:0]             byte_sel;       // byte within 32-bit register
-  logic                    buf_sel;        // access targets the ABR_DBUFF region
+  logic [   USB_ADDR_WIDTH-1:0]  full_byte_addr; // reconstructed 20-bit USB byte address
+  logic [     ByteSelWidth-1:0]  byte_sel;       // byte within 32-bit register
+  logic                          buf_sel;        // access targets the ABR_DBUFF region
 
   logic [CW_REG_DATA_WIDTH-1:0] dut_stat0;
   logic [CW_REG_DATA_WIDTH-1:0] dut_stat1;
@@ -103,18 +93,18 @@ module abr_cw310_reg
 
   // Full-width buffer offset subtraction — pADDR_WIDTH bits comfortably spans
   // the 0x0100–0x20FF window (0x20FF = 8447 < 2^20).
-  logic [pADDR_WIDTH-1:0] buf_offset;
+  logic [USB_ADDR_WIDTH-1:0] buf_offset;
 
-  assign full_byte_addr  = {reg_address, reg_bytecnt};
-  assign reg_idx         = full_byte_addr[15:2];
-  assign byte_sel        = full_byte_addr[ 1:0];
+  assign byte_sel        = reg_bytecnt[2-1:0];
+  assign full_byte_addr  = USB_ADDR_WIDTH'({reg_address, byte_sel});
 
   assign buf_sel         = reg_addrvalid &&
-                           (int'(reg_address) >= DBUFF_ADDR_LO) &&
-                           (int'(reg_address) <= DBUFF_ADDR_HI);
+                           (unsigned'(reg_address) >= DBUFF_ADDR_LO) &&
+                           (unsigned'(reg_address) <= DBUFF_ADDR_HI);
 
-  // Buffer byte offset: subtract the buffer base from the address.
-  assign buf_offset      = full_byte_addr - CW310_ADDR_ABR_DBUFF_BASE;
+  // Buffer byte offset: full_byte_addr minus the byte address of the DBUFF
+  // base (word address shifted left by pBYTECNT_SIZE to get the byte address).
+  assign buf_offset      = full_byte_addr - (USB_ADDR_WIDTH)'(DBUFF_ADDR_LO << ByteSelWidth);
   assign buf_addr_o      = buf_offset;
 
   // Write data and strobe forwarded directly; address is always combinational.
@@ -132,10 +122,10 @@ module abr_cw310_reg
       abr_instr_q <= '0;
     end else begin
       if (reg_write) begin
-        case (reg_idx)
-          IDX_DUT_CTRL0: dut_ctrl0_q[{byte_sel, 3'b0} +: 8] <= write_data;
-          IDX_DUT_CTRL1: dut_ctrl1_q[{byte_sel, 3'b0} +: 8] <= write_data;
-          IDX_ABR_INSTR: abr_instr_q[{byte_sel, 3'b0} +: 8] <= write_data;
+        case (reg_address)
+          CW310_ADDR_DUT_CTRL0: dut_ctrl0_q[{byte_sel, 3'b0} +: 8] <= write_data;
+          CW310_ADDR_DUT_CTRL1: dut_ctrl1_q[{byte_sel, 3'b0} +: 8] <= write_data;
+          CW310_ADDR_ABR_INSTR: abr_instr_q[{byte_sel, 3'b0} +: 8] <= write_data;
           default: ;
         endcase
       end
@@ -152,13 +142,13 @@ module abr_cw310_reg
     if (reg_read && buf_sel) begin
       read_data = buf_rdata_i;
     end else if (reg_read) begin
-      case (reg_idx)
-        IDX_DUT_IDENT: read_data = dut_ident_q[{byte_sel, 3'b0} +: 8];
-        IDX_DUT_CTRL0: read_data = dut_ctrl0_q[{byte_sel, 3'b0} +: 8];
-        IDX_DUT_CTRL1: read_data = dut_ctrl1_q[{byte_sel, 3'b0} +: 8];
-        IDX_DUT_STAT0: read_data =   dut_stat0[{byte_sel, 3'b0} +: 8];
-        IDX_DUT_STAT1: read_data =   dut_stat1[{byte_sel, 3'b0} +: 8];
-        IDX_ABR_INSTR: read_data = abr_instr_q[{byte_sel, 3'b0} +: 8];
+      case (reg_address)
+        CW310_ADDR_DUT_IDENT: read_data = dut_ident_q[{byte_sel, 3'b0} +: 8];
+        CW310_ADDR_DUT_CTRL0: read_data = dut_ctrl0_q[{byte_sel, 3'b0} +: 8];
+        CW310_ADDR_DUT_CTRL1: read_data = dut_ctrl1_q[{byte_sel, 3'b0} +: 8];
+        CW310_ADDR_DUT_STAT0: read_data =   dut_stat0[{byte_sel, 3'b0} +: 8];
+        CW310_ADDR_DUT_STAT1: read_data =   dut_stat1[{byte_sel, 3'b0} +: 8];
+        CW310_ADDR_ABR_INSTR: read_data = abr_instr_q[{byte_sel, 3'b0} +: 8];
         default:       read_data = 8'h00;
       endcase
     end
