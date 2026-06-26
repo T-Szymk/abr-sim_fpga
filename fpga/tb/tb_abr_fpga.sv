@@ -54,6 +54,16 @@ module tb_abr_fpga;
   assign usb.clk = tb_usb_clk & usb_clk_enable;
 
   // -------------------------------------------------------------------------
+  // TB Reset
+  // -------------------------------------------------------------------------
+
+  initial begin
+    tb_reset = '0;
+    #TB_RESET_DURATION;
+    tb_reset = 1'b1;
+  end
+
+  // -------------------------------------------------------------------------
   // TB Logic Instance
   // -------------------------------------------------------------------------
 
@@ -92,11 +102,7 @@ module tb_abr_fpga;
     usb.wrn        = 1;
     usb.cen        = 1;
 
-    // simulate reset 
-    tb_reset = 1'b0;
-    #(USB_CLK_PERIOD*5);
-    tb_reset = 1'b1;
-
+    #TB_RESET_DURATION;
     #(USB_CLK_PERIOD*10);
 
     // lift DUT from reset

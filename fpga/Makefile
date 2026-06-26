@@ -207,6 +207,7 @@ CW_SRC_FILES     = $(CW310_DIR)/fpga/aes/hdl/cw310_usb_reg_fe.v \
 
 FPGA_TB_SV_FILES = $(FPGA_TB_DIR)/tb_cw310_pkg.sv  \
 									 $(FPGA_TB_DIR)/tb_abr_fpga.sv   \
+									 $(FPGA_TB_DIR)/tb_abr_fpga_leds.sv   \
 									 $(FPGA_TB_DIR)/abr_fpga_top_sim.sv
 
 INC_DIRS         = +incdir+${ADAMSBRIDGE_ROOT}/src/abr_top/rtl           \

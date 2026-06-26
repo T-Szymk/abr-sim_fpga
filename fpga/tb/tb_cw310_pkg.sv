@@ -7,8 +7,8 @@ package tb_cw310_pkg;
 
   parameter realtime TB_PLL_CLK_PERIOD = 50.0ns; 
   parameter realtime USB_CLK_PERIOD    = 10.0ns;
-  parameter realtime TB_RESET_DURATION = 20.0ns; // Reset active for first 20 ns
-  parameter realtime TB_TIMEOUT        = 10.0ms; // Timeout for test completion
+  parameter realtime TB_RESET_DURATION = 50.0ns; // Reset active for first 20 ns
+  parameter realtime TB_TIMEOUT        = 2.0s;   // Timeout for test completion
 
 `ifdef VERBOSE
   parameter bit      VERBOSE           = 1'b1;

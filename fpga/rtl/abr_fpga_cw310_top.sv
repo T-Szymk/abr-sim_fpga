@@ -43,7 +43,7 @@ module abr_fpga_cw310_top
 
 
   // Debug counter for LED toggling
-  logic [20:0] dbg_cntr_fpga;
+  logic [23:0] dbg_cntr_fpga;
   logic [25:0] dbg_cntr_usb;
   logic        programmable_usrled;
 
@@ -60,7 +60,7 @@ module abr_fpga_cw310_top
   assign USRLED[0] = ~usb_reset;          // USB domain active high reset
   assign USRLED[1] = dbg_cntr_usb[25];    // USB debug counter 96MHz
   assign USRLED[2] = rst_n;               // FPGA domain active low reset
-  assign USRLED[3] = dbg_cntr_fpga[19];   // FPGA debug counter 20MHz
+  assign USRLED[3] = dbg_cntr_fpga[22];   // FPGA debug counter 20MHz
   assign USRLED[4] = dut_rstn;            // DUT reset
   assign USRLED[5] = programmable_usrled; // Programmable User LED
   
