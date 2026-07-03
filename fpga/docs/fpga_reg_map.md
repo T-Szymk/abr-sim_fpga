@@ -1,14 +1,14 @@
 ## reg map for CW ABR Test Setup
 
-| Base Address | End Address | Field       | Notes                       |
-| ---          | ---         | ---         | ---                         |
-| `0x0000`     | `0x0004`    | `IDENT`     | Read-only                   |
-| `0x0001`     | `0x0008`    | `DUT_CTRL0` | R/W                         |
-| `0x0002`     | `0x000C`    | `DUT_CTRL1` | R/W                         |
-| `0x0003`     | `0x0010`    | `DUT_STAT0` | Read-only                   |
-| `0x0004`     | `0x0014`    | `DUT_STAT1` | Read-only                   |
-| `0x0005`     | `0x0018`    | `ABR_INSTR` | R/W                         |
-| `0x0040`     | `0x0840`    | `ABR_DBUFF` | R/W - 8192 Byte data buffer |
+| Base Address | Field       | Notes                       |
+| ---          | ---         | ---                         |
+| `0x0000`     | `IDENT`     | Read-only                   |
+| `0x0001`     | `DUT_CTRL0` | R/W                         |
+| `0x0002`     | `DUT_CTRL1` | R/W                         |
+| `0x0003`     | `DUT_STAT0` | Read-only                   |
+| `0x0004`     | `DUT_STAT1` | Read-only                   |
+| `0x0005`     | `ABR_INSTR` | R/W                         |
+| `0x0040`     | `ABR_DBUFF` | R/W - 8192 Byte data buffer |
 
 ### Register bitfields 
 

@@ -417,7 +417,7 @@ fpga_init:
 	@mkdir -p $(IP_DIR)
 
 
-fpga_build_ip: fpga_init $(IP_LIST)
+fpga_build_ip: fpga_clean_ip fpga_init $(IP_LIST)
 	@echo "Finished generating the following Vivado IPs..."
 	@echo "$(IP_LIST)"
 
@@ -434,7 +434,7 @@ fpga_clean_ip:
 	@echo "Cleaning Vivado IPs..."
 	@rm -rf $(IP_DIR)
 
-fpga_ooc_build: fpga_init fpga_ooc_clean
+fpga_ooc_build: fpga_ooc_clean fpga_init
 	@echo "Building $(OOC_PROJECT_NAME)..."
 	@cd $(FPGA_BUILD_DIR) && \
 	vivado -mode batch -source $(SCRIPT_DIR)/abr_top_ooc.tcl -notrace -log \
@@ -446,7 +446,11 @@ fpga_ooc_clean:
 	@rm -rf $(OOC_PROJECT_DIR)
 
 
-fpga_main_build:
+fpga_main_build: fpga_main_clean fpga_init
+ifeq ($(wildcard $(IP_DIR)/$(BOARD)/*),)
+	@echo "[ERROR] IPs must be generated before building FPGA project! Use: 'make fpga_build_ip'"
+	exit 1
+endif
 	@echo "Building $(PROJECT_NAME)..."
 	@cd $(FPGA_BUILD_DIR) && \
 	vivado -mode batch -source $(SCRIPT_DIR)/abr_fpga_build.tcl -notrace -log \
