@@ -536,7 +536,7 @@ package tb_cw310_pkg;
           break;
       end
 
-      $display("[%16t ns] TB : DUT in reset!", $realtime/1ns);
+      $display("[%16t ns] TB : DUT out of reset!", $realtime/1ns);
 
     end
       
